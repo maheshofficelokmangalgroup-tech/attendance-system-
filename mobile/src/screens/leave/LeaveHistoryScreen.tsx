@@ -1,0 +1,227 @@
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors, radius, spacing } from "../../theme/tokens";
+import apiClient from "../../api/client";
+
+interface LeaveRecord {
+  id: number;
+  leave_type?: { code: string; name: string };
+  from_date: string;
+  to_date: string;
+  total_days: number;
+  reason: string | null;
+  status: string;
+}
+
+export const LeaveHistoryScreen = ({ navigation }: any) => {
+  const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadData = () => {
+    setIsLoading(true);
+    apiClient.get("/leaves/my-history?page_size=30")
+      .then(({ data }) => {
+        setLeaves(Array.isArray(data) ? data : data?.data ?? []);
+      })
+      .catch(console.error)
+      .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleCancel = async (id: number) => {
+    try {
+      await apiClient.post(`/leaves/${id}/cancel`);
+      Alert.alert("Leave request cancelled");
+      loadData();
+    } catch (e: any) {
+      Alert.alert(e?.response?.data?.detail ?? "Failed to cancel leave");
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toUpperCase()) {
+      case "APPROVED": return { text: "#059669", bg: "rgba(5,150,105,0.12)" };
+      case "FIRST_APPROVED": return { text: "#0D9488", bg: "rgba(13,148,136,0.12)" };
+      case "REJECTED": return { text: "#E11D48", bg: "rgba(225,29,72,0.12)" };
+      case "CANCELLED": return { text: "#64748B", bg: "rgba(100,116,139,0.12)" };
+      default: return { text: "#D97706", bg: "rgba(217,119,6,0.12)" };
+    }
+  };
+
+  const renderItem = ({ item }: { item: LeaveRecord }) => {
+    const statusStyle = getStatusColor(item.status);
+    const canCancel = item.status !== "CANCELLED" && item.status !== "REJECTED";
+
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>{item.leave_type?.code ?? "PL"}</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+            <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.status}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.dateRange}>
+          {item.from_date} to {item.to_date} · <Text style={{ fontWeight: "700" }}>{item.total_days} day(s)</Text>
+        </Text>
+
+        {item.reason ? (
+          <Text style={styles.reasonText}>"{item.reason}"</Text>
+        ) : null}
+
+        {canCancel && (
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => handleCancel(item.id)}
+          >
+            <Text style={styles.cancelBtnText}>Cancel Request</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.headerRow}>
+          <Text style={styles.header}>My Leave Requests</Text>
+          <TouchableOpacity
+            style={styles.applyBtn}
+            onPress={() => navigation.navigate("ApplyLeave")}
+          >
+            <Text style={styles.applyBtnText}>+ Apply Leave</Text>
+          </TouchableOpacity>
+        </View>
+
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <FlatList
+            data={leaves}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyText}>No leave applications submitted yet.</Text>
+              </View>
+            }
+          />
+        )}
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    flex: 1,
+    padding: spacing.base,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  header: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  applyBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.button,
+  },
+  applyBtnText: {
+    color: "#FFF",
+    fontWeight: "600",
+    fontSize: 13,
+  },
+  list: {
+    paddingBottom: spacing.xl,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderColor: colors.border,
+    borderWidth: 1,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  typeBadge: {
+    backgroundColor: "rgba(79,70,229,0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  typeBadgeText: {
+    color: colors.primary,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.badge,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  dateRange: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  reasonText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    marginBottom: spacing.xs,
+  },
+  cancelBtn: {
+    alignSelf: "flex-end",
+    marginTop: spacing.xs,
+  },
+  cancelBtnText: {
+    color: "#E11D48",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  emptyBox: {
+    padding: 40,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+});

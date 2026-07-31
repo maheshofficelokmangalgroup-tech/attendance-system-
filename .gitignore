@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+admin-panel/node_modules/
+mobile/node_modules/
+mobile/.expo/
+admin-panel/dist/
+
+# Python virtual environment & cache
+venv/
+backend/venv/
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Uploads & Temporary files
+backend/uploads/
+*.log
+nul
+
+# Environment & Sensitive files
+.env
+backend/.env
+admin-panel/.env
+mobile/.env
+
+# IDE & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

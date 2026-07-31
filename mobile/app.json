@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "AttendHR",
+    "slug": "attendhr-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.attendhr.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "AttendHR uses your camera to capture a selfie for attendance check-in/check-out verification.",
+        "NSLocationWhenInUseUsageDescription": "AttendHR uses your location to verify you are checking in from an approved office location."
+      }
+    },
+    "android": {
+      "package": "com.attendhr.mobile",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "AttendHR uses your camera to capture a selfie for attendance check-in/check-out verification."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "AttendHR uses your location to verify you are checking in from an approved office location."
+        }
+      ]
+    ]
+  }
+}
