@@ -4,6 +4,8 @@ admin-panel/node_modules/
 mobile/node_modules/
 mobile/.expo/
 admin-panel/dist/
+mobile/dist/
+mobile/web-build/
 
 # Python virtual environment & cache
 venv/
