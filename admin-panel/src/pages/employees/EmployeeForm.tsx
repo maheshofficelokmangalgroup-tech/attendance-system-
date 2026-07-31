@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, CheckCircle2, Copy, Check } from "lucide-react";
 import apiClient from "@/api/client";
 
 const schema = z.object({
@@ -52,6 +52,8 @@ const EmployeeForm: React.FC = () => {
   const [roles, setRoles] = useState<SelectOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -84,14 +86,27 @@ const EmployeeForm: React.FC = () => {
     try {
       if (isEdit) {
         await apiClient.put(`/employees/${id}`, values);
+        navigate("/employees");
       } else {
         await apiClient.post("/employees", values);
+        // Backend creates the linked login account with the employee code as
+        // the initial password (see EmployeeService.create) — surface it here
+        // since this is the only place that value is ever shown to the admin.
+        setCreatedCredentials({ email: values.email, password: values.employee_code });
       }
-      navigate("/employees");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setServerError(msg ?? "Failed to save employee");
     }
+  };
+
+  const handleCopyCredentials = () => {
+    if (!createdCredentials) return;
+    const text = `Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const inputStyle: React.CSSProperties = {
@@ -101,6 +116,45 @@ const EmployeeForm: React.FC = () => {
   };
 
   const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" } as const;
+
+  if (createdCredentials) {
+    return (
+      <div style={{ maxWidth: "560px" }}>
+        <div className="card" style={{ padding: "32px", textAlign: "center" }}>
+          <div style={{ width: "56px", height: "56px", borderRadius: "50%", background: "rgba(5,150,105,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <CheckCircle2 size={28} color="#059669" />
+          </div>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "6px" }}>
+            Employee Created
+          </h1>
+          <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", marginBottom: "24px" }}>
+            Share these login details with the employee. They should log in to the mobile app and change their password.
+          </p>
+
+          <div style={{ background: "var(--color-background)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "18px", textAlign: "left", marginBottom: "20px" }}>
+            <div style={{ marginBottom: "12px" }}>
+              <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "2px" }}>EMAIL (LOGIN)</p>
+              <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "monospace" }}>{createdCredentials.email}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "2px" }}>TEMPORARY PASSWORD</p>
+              <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "monospace" }}>{createdCredentials.password}</p>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+            <button className="btn-ghost" onClick={handleCopyCredentials} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              {copied ? <Check size={15} color="#059669" /> : <Copy size={15} />}
+              {copied ? "Copied" : "Copy Credentials"}
+            </button>
+            <button className="btn-primary" onClick={() => navigate("/employees")}>
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: "800px" }}>
