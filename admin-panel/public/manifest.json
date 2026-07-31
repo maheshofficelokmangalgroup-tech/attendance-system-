@@ -1,0 +1,19 @@
+{
+  "short_name": "AttendHR",
+  "name": "AttendHR — Attendance & Leave Management",
+  "description": "Enterprise Selfie & GPS Check-In, Leave Management, and Attendance Portal",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}
