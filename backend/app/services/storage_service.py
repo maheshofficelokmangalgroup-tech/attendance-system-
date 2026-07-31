@@ -52,6 +52,46 @@ class LocalStorageService(BaseStorageService):
         return False
 
 
+class CloudinaryStorageService(BaseStorageService):
+    def __init__(self):
+        import cloudinary
+
+        cloudinary.config(
+            cloud_name=settings.CLOUDINARY_CLOUD_NAME,
+            api_key=settings.CLOUDINARY_API_KEY,
+            api_secret=settings.CLOUDINARY_API_SECRET,
+            secure=True,
+        )
+
+    def save_file(self, file_obj: BinaryIO, relative_path: str) -> str:
+        """
+        Uploads to Cloudinary under public_id "<relative_path without ext>"
+        (e.g. "attendance/emp_1_checkin_x"). Returns the Cloudinary secure_url.
+        """
+        import cloudinary.uploader
+
+        clean_rel = relative_path.replace("\\", "/")
+        public_id = os.path.splitext(clean_rel)[0]
+
+        result = cloudinary.uploader.upload(
+            file_obj,
+            public_id=public_id,
+            overwrite=True,
+            resource_type="image",
+        )
+        return result["secure_url"]
+
+    def delete_file(self, relative_path: str) -> bool:
+        import cloudinary.uploader
+
+        clean_rel = relative_path.lstrip("/").replace("uploads/", "")
+        public_id = os.path.splitext(clean_rel)[0]
+        result = cloudinary.uploader.destroy(public_id, resource_type="image")
+        return result.get("result") == "ok"
+
+
 def get_storage_service() -> BaseStorageService:
     """Factory function for storage service dependency injection."""
+    if settings.STORAGE_BACKEND.lower() == "cloudinary":
+        return CloudinaryStorageService()
     return LocalStorageService()

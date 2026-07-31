@@ -55,8 +55,14 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
     # File Storage
+    STORAGE_BACKEND: str = "local"  # "local" or "cloudinary"
     UPLOAD_DIR: str = "uploads"
     MAX_UPLOAD_SIZE_MB: int = 10
+
+    # Cloudinary (used when STORAGE_BACKEND=cloudinary)
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
     # Rate Limiting
     AUTH_RATE_LIMIT: int = 10

@@ -17,6 +17,14 @@ import apiClient from "../../api/client";
 
 const API_HOST = (apiClient.defaults.baseURL ?? "").replace(/\/api\/v1\/?$/, "");
 
+// Selfie paths come back either as a Cloudinary absolute URL or a local
+// "/uploads/..." relative path (dev / STORAGE_BACKEND=local).
+const resolvePhotoUrl = (path?: string | null): string | undefined => {
+  if (!path) return undefined;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_HOST}${path}`;
+};
+
 interface AttendanceRecord {
   id: number;
   date: string;
@@ -169,7 +177,7 @@ export const AttendanceHistoryScreen = ({ navigation }: any) => {
                 <View style={styles.detailCard}>
                   {selectedDetail.check_in_photo_path ? (
                     <Image
-                      source={{ uri: `${API_HOST}${selectedDetail.check_in_photo_path}` }}
+                      source={{ uri: resolvePhotoUrl(selectedDetail.check_in_photo_path) }}
                       style={styles.photo}
                       resizeMode="cover"
                     />
@@ -197,7 +205,7 @@ export const AttendanceHistoryScreen = ({ navigation }: any) => {
                 <View style={styles.detailCard}>
                   {selectedDetail.check_out_photo_path ? (
                     <Image
-                      source={{ uri: `${API_HOST}${selectedDetail.check_out_photo_path}` }}
+                      source={{ uri: resolvePhotoUrl(selectedDetail.check_out_photo_path) }}
                       style={styles.photo}
                       resizeMode="cover"
                     />

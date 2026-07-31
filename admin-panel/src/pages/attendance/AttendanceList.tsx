@@ -11,7 +11,7 @@ import {
   fetchAttendanceList, fetchTodaySummary, fetchAttendanceDetail,
   regularizeAttendance, AttendanceItem, AttendanceTodaySummaryData,
 } from "@/api/attendance";
-import apiClient from "@/api/client";
+import apiClient, { resolvePhotoUrl } from "@/api/client";
 
 interface Department { id: number; name: string; }
 
@@ -139,7 +139,7 @@ const AttendanceList: React.FC = () => {
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {row.check_in_photo_path && (
             <img
-              src={`http://localhost:8000${row.check_in_photo_path}`}
+              src={resolvePhotoUrl(row.check_in_photo_path)}
               alt="Selfie"
               style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", border: "1px solid var(--color-border)" }}
               onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
@@ -379,7 +379,7 @@ const AttendanceList: React.FC = () => {
               <div style={{ padding: "14px", borderRadius: "12px", border: "1px solid var(--color-border)", textAlign: "center" }}>
                 <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "8px" }}>CHECK-IN SELFIE</p>
                 {selectedItem.check_in_photo_path ? (
-                  <img src={`http://localhost:8000${selectedItem.check_in_photo_path}`} alt="Check-in selfie" style={{ width: "100%", height: "160px", borderRadius: "8px", objectFit: "cover" }} />
+                  <img src={resolvePhotoUrl(selectedItem.check_in_photo_path)} alt="Check-in selfie" style={{ width: "100%", height: "160px", borderRadius: "8px", objectFit: "cover" }} />
                 ) : (
                   <div style={{ height: "160px", background: "var(--color-background)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-secondary)", fontSize: "13px" }}>No photo</div>
                 )}
@@ -389,7 +389,7 @@ const AttendanceList: React.FC = () => {
               <div style={{ padding: "14px", borderRadius: "12px", border: "1px solid var(--color-border)", textAlign: "center" }}>
                 <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "8px" }}>CHECK-OUT SELFIE</p>
                 {selectedItem.check_out_photo_path ? (
-                  <img src={`http://localhost:8000${selectedItem.check_out_photo_path}`} alt="Check-out selfie" style={{ width: "100%", height: "160px", borderRadius: "8px", objectFit: "cover" }} />
+                  <img src={resolvePhotoUrl(selectedItem.check_out_photo_path)} alt="Check-out selfie" style={{ width: "100%", height: "160px", borderRadius: "8px", objectFit: "cover" }} />
                 ) : (
                   <div style={{ height: "160px", background: "var(--color-background)", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-secondary)", fontSize: "13px" }}>No photo</div>
                 )}

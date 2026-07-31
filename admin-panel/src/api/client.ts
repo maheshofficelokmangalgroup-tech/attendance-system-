@@ -3,6 +3,16 @@ import { store } from "@/store";
 import { clearAuth, setTokens } from "@/store/authSlice";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api/v1";
+const API_ORIGIN = BASE_URL.replace(/\/api\/v1\/?$/, "");
+
+// Attendance selfie paths come back either as a Cloudinary absolute URL or a
+// local "/uploads/..." relative path (dev / STORAGE_BACKEND=local) — resolve
+// either into a usable <img src>.
+export const resolvePhotoUrl = (path?: string | null): string | undefined => {
+  if (!path) return undefined;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_ORIGIN}${path}`;
+};
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
