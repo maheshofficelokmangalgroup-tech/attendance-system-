@@ -66,14 +66,15 @@ export const CheckInScreen = ({ navigation }: any) => {
       setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
 
       try {
-        const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-        const place = results[0];
-        if (place) {
-          const line = [place.name, place.street, place.district || place.subregion, place.city, place.region]
-            .filter((part, i, arr) => !!part && arr.indexOf(part) === i)
-            .join(", ");
-          if (line) setAddress(line);
-        }
+        // Location.reverseGeocodeAsync uses the native OS geocoder, which isn't
+        // available on web — call the same free Nominatim API the backend uses
+        // so the address resolves consistently on every platform.
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+          { headers: { Accept: "application/json" } }
+        );
+        const geo = await resp.json();
+        if (geo?.display_name) setAddress(geo.display_name);
       } catch {
         // Reverse geocoding is best-effort — keep the coordinate fallback if it fails.
       }
@@ -143,14 +144,26 @@ export const CheckInScreen = ({ navigation }: any) => {
       formData.append("app_version", "1.0.0");
       formData.append("connection_type", "unknown");
 
-      formData.append("photo", {
-        uri: photoPath,
-        name: "selfie.jpg",
-        type: "image/jpeg",
-      } as any);
+      if (Platform.OS === "web") {
+        // React Native's { uri, name, type } FormData shorthand only works via
+        // RN's native networking bridge — a real browser's FormData needs an
+        // actual Blob, so fetch the captured photo back into one first.
+        const photoBlob = await (await fetch(photoPath)).blob();
+        formData.append("photo", photoBlob, "selfie.jpg");
+      } else {
+        formData.append("photo", {
+          uri: photoPath,
+          name: "selfie.jpg",
+          type: "image/jpeg",
+        } as any);
+      }
 
       const response = await apiClient.post("/attendance/check-in", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        // apiClient defaults to Content-Type: application/json — on web that
+        // must be cleared (not just omitted) so the browser can set its own
+        // multipart boundary; passing `undefined` here still inherits the
+        // JSON default, so explicitly null it out for this one request.
+        headers: Platform.OS === "web" ? { "Content-Type": undefined } : { "Content-Type": "multipart/form-data" },
       });
 
       setCheckInResult(response.data);
