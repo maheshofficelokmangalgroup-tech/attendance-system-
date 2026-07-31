@@ -56,9 +56,8 @@ def approval_queue(
     db: Session = Depends(get_db),
 ):
     svc = LeaveService(db)
-    emp_id = current_user.employee_id or 0
     role_slug = current_user.role.slug if current_user.role else ""
-    return APIResponse(data=svc.get_approval_queue(user_employee_id=emp_id, role_slug=role_slug))
+    return APIResponse(data=svc.get_approval_queue(user_employee_id=current_user.employee_id, role_slug=role_slug))
 
 
 @router.get("/team-calendar", response_model=APIResponse[List[TeamCalendarLeaveItem]], summary="Get team leave calendar within date range")
@@ -109,8 +108,15 @@ def approve_first(
     db: Session = Depends(get_db),
 ):
     svc = LeaveService(db)
-    emp_id = current_user.employee_id or 0
-    return APIResponse(data=svc.approve_first_level(leave_id=id, actor_employee_id=emp_id, remarks=payload.remarks), message="First-level approval recorded")
+    return APIResponse(
+        data=svc.approve_first_level(
+            leave_id=id,
+            actor_user_id=current_user.id,
+            actor_employee_id=current_user.employee_id,
+            remarks=payload.remarks,
+        ),
+        message="First-level approval recorded",
+    )
 
 
 @router.post("/{id}/approve-final", response_model=APIResponse[LeaveResponse], summary="Final leave approval (HR/Admin)")
@@ -121,7 +127,15 @@ def approve_final(
     db: Session = Depends(get_db),
 ):
     svc = LeaveService(db)
-    return APIResponse(data=svc.approve_final_level(leave_id=id, actor_user_id=current_user.id, remarks=payload.remarks), message="Leave approved")
+    return APIResponse(
+        data=svc.approve_final_level(
+            leave_id=id,
+            actor_user_id=current_user.id,
+            actor_employee_id=current_user.employee_id,
+            remarks=payload.remarks,
+        ),
+        message="Leave approved",
+    )
 
 
 @router.post("/{id}/reject", response_model=APIResponse[LeaveResponse], summary="Reject leave request")

@@ -13,7 +13,6 @@ from app.models.leave import (
     Leave, LeaveBalance, LeaveType, LeaveStatusEnum,
     LeaveApprovalStatusEnum, CompOff, AccrualTypeEnum,
 )
-from app.models.employee import Employee
 from app.models.attendance import Attendance, AttendanceStatusEnum
 from app.models.notification import Notification
 from app.repository.leave_repo import LeaveRepository
@@ -163,7 +162,9 @@ class LeaveService:
     # Approval Chain: Manager (First) → HR/Admin (Final)
     # ------------------------------------------------------------------
 
-    def approve_first_level(self, leave_id: int, actor_employee_id: int, remarks: Optional[str] = None) -> LeaveResponse:
+    def approve_first_level(
+        self, leave_id: int, actor_user_id: int, actor_employee_id: Optional[int], remarks: Optional[str] = None
+    ) -> LeaveResponse:
         leave = self.repo.get_locked(leave_id)
         if not leave:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave request not found")
@@ -171,6 +172,8 @@ class LeaveService:
         if leave.status != LeaveStatusEnum.PENDING:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot approve leave in '{leave.status.value}' status")
 
+        # first_approver_id is a FK to employees.id — nullable, since an
+        # approving Admin/HR user doesn't necessarily have an employee profile.
         leave.first_approver_id = actor_employee_id
         leave.first_approval_status = LeaveApprovalStatusEnum.APPROVED
         leave.first_approval_at = datetime.now(timezone.utc)
@@ -188,7 +191,7 @@ class LeaveService:
             ))
 
         self.audit_repo.log(
-            user_id=actor_employee_id,
+            user_id=actor_user_id,
             action="leave_first_approved",
             entity_type="Leave",
             entity_id=leave.id,
@@ -197,7 +200,9 @@ class LeaveService:
         self.db.commit()
         return self._build_leave_response(leave.id)
 
-    def approve_final_level(self, leave_id: int, actor_user_id: int, remarks: Optional[str] = None) -> LeaveResponse:
+    def approve_final_level(
+        self, leave_id: int, actor_user_id: int, actor_employee_id: Optional[int], remarks: Optional[str] = None
+    ) -> LeaveResponse:
         leave = self.repo.get_locked(leave_id)
         if not leave:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave request not found")
@@ -218,9 +223,9 @@ class LeaveService:
                        f"— manager first-level approval is required first",
             )
 
-        actor_user = self.db.get(Employee, actor_user_id)
-
-        leave.final_approver_id = actor_user.id if actor_user else None
+        # final_approver_id is a FK to employees.id — nullable, since an
+        # approving Admin/HR user doesn't necessarily have an employee profile.
+        leave.final_approver_id = actor_employee_id
         leave.final_approval_status = LeaveApprovalStatusEnum.APPROVED
         leave.final_approval_at = datetime.now(timezone.utc)
         leave.status = LeaveStatusEnum.APPROVED
@@ -381,7 +386,7 @@ class LeaveService:
             total_pages=math.ceil(total / page_size) if total else 0,
         )
 
-    def get_approval_queue(self, user_employee_id: int, role_slug: str) -> List[LeaveResponse]:
+    def get_approval_queue(self, user_employee_id: Optional[int], role_slug: str) -> List[LeaveResponse]:
         is_hr_or_admin = role_slug in ("admin", "hr")
         leaves = self.repo.list_approval_queue(user_employee_id, is_hr_or_admin=is_hr_or_admin)
         return [self._build_leave_response(l.id) for l in leaves]

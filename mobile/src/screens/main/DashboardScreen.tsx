@@ -14,41 +14,61 @@ import { useTheme, ThemePalette } from "../../theme/ThemeContext";
 import { RootState } from "../../redux/store";
 import apiClient from "../../api/client";
 
-interface TodayAttendance {
+interface AttendanceRecord {
   date: string;
   check_in_time: string | null;
   check_out_time: string | null;
   status: string;
 }
 
+const PRESENT_STATUSES = ["present", "late", "half_day", "early_exit", "on_duty", "comp_off"];
+const LEAVE_STATUSES = ["on_leave", "lwp"];
+
 export const DashboardScreen = ({ navigation }: any) => {
   const user = useSelector((state: RootState) => state.auth.user);
   const { colors, spacing, radius, shadows } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, spacing, radius, shadows), [colors, spacing, radius, shadows]);
 
-  const [today, setToday] = useState<TodayAttendance | null>(null);
+  const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadTodayStatus = useCallback(() => {
+  const loadHistory = useCallback(() => {
     setIsLoading(true);
     apiClient
-      .get("/attendance/my-history?page_size=1")
+      .get("/attendance/my-history?page_size=31")
       .then(({ data }) => {
-        const list = Array.isArray(data) ? data : data?.data ?? [];
-        const latest = list[0];
-        const todayStr = new Date().toISOString().split("T")[0];
-        setToday(latest && latest.date === todayStr ? latest : null);
+        setHistory(Array.isArray(data) ? data : data?.data ?? []);
       })
-      .catch(() => setToday(null))
+      .catch(() => setHistory([]))
       .finally(() => setIsLoading(false));
   }, []);
 
   // Refetch every time this screen regains focus (e.g. returning from Check-In/Out)
   useFocusEffect(
     useCallback(() => {
-      loadTodayStatus();
-    }, [loadTodayStatus])
+      loadHistory();
+    }, [loadHistory])
   );
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const today = history.find((r) => r.date === todayStr) ?? null;
+
+  const currentMonthKey = todayStr.slice(0, 7); // "YYYY-MM"
+  const thisMonth = history.filter((r) => r.date.startsWith(currentMonthKey));
+  const monthlyStats = {
+    present: thisMonth.filter((r) => PRESENT_STATUSES.includes(r.status)).length,
+    late: thisMonth.filter((r) => r.status === "late").length,
+    leave: thisMonth.filter((r) => LEAVE_STATUSES.includes(r.status)).length,
+    wfh: thisMonth.filter((r) => r.status === "wfh").length,
+  };
+
+  const recentLogs = history.slice(0, 5);
+
+  const formatStatus = (status: string) =>
+    status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const formatLogDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
   const hasCheckedIn = !!today?.check_in_time;
   const hasCheckedOut = !!today?.check_out_time;
@@ -136,33 +156,66 @@ export const DashboardScreen = ({ navigation }: any) => {
         <Text style={styles.sectionTitle}>Monthly Overview</Text>
         <View style={styles.grid}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>—</Text>
+            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.present}</Text>
             <Text style={styles.statLabel}>Present</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>—</Text>
+            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.late}</Text>
             <Text style={styles.statLabel}>Late</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>—</Text>
+            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.leave}</Text>
             <Text style={styles.statLabel}>Leave</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>—</Text>
+            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.wfh}</Text>
             <Text style={styles.statLabel}>WFH</Text>
           </View>
         </View>
 
         {/* Recent Activity */}
         <Text style={styles.sectionTitle}>Recent Logs</Text>
-        <View style={styles.activityCard}>
-          <Text style={styles.placeholderText}>
-            Attendance history and leave records will populate here once logged.
-          </Text>
-        </View>
+        {isLoading ? (
+          <View style={styles.activityCard}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : recentLogs.length === 0 ? (
+          <View style={styles.activityCard}>
+            <Text style={styles.placeholderText}>
+              Attendance history and leave records will populate here once logged.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.activityCard}>
+            {recentLogs.map((log, i) => (
+              <View
+                key={log.date}
+                style={[styles.logRow, i < recentLogs.length - 1 && styles.logRowDivider]}
+              >
+                <Text style={styles.logDate}>{formatLogDate(log.date)}</Text>
+                <Text style={styles.logDetail}>
+                  {log.check_in_time ? log.check_in_time.slice(0, 5) : "—"}
+                  {"  →  "}
+                  {log.check_out_time ? log.check_out_time.slice(0, 5) : "—"}
+                </Text>
+                <Text style={[styles.logStatus, { color: statusColor(log.status) }]}>
+                  {formatStatus(log.status)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
+};
+
+const statusColor = (status: string) => {
+  if (status === "present") return "#059669";
+  if (status === "late") return "#D97706";
+  if (status === "absent") return "#E11D48";
+  if (["on_leave", "lwp"].includes(status)) return "#0D9488";
+  return "#64748B";
 };
 
 const createStyles = (colors: ThemePalette, spacing: any, radius: any, shadows: any) =>
@@ -302,5 +355,33 @@ const createStyles = (colors: ThemePalette, spacing: any, radius: any, shadows: 
     color: colors.textSecondary,
     fontSize: 13,
     textAlign: "center",
+  },
+  logRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+  },
+  logRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  logDate: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    width: 56,
+  },
+  logDetail: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    flex: 1,
+    textAlign: "center",
+  },
+  logStatus: {
+    fontSize: 12,
+    fontWeight: "600",
+    width: 72,
+    textAlign: "right",
   },
 });
