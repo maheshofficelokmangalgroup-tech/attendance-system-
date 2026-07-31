@@ -28,6 +28,7 @@ export const CheckInScreen = ({ navigation }: any) => {
   const [isPreparing, setIsPreparing] = useState(false);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
   const [checkInResult, setCheckInResult] = useState<any>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -82,6 +83,7 @@ export const CheckInScreen = ({ navigation }: any) => {
   };
 
   const handleEnableAndContinue = async () => {
+    if (isPreparing) return; // ignore rapid repeat taps while a request is in flight
     setIsPreparing(true);
     try {
       let cameraGranted = cameraPermission?.granted;
@@ -93,19 +95,25 @@ export const CheckInScreen = ({ navigation }: any) => {
       const locationStatus = await Location.requestForegroundPermissionsAsync();
 
       if (!cameraGranted || locationStatus.status !== "granted") {
-        Alert.alert("Camera and Location permissions are both required to check in.");
+        Alert.alert("Permissions Required", "Camera and Location permissions are both required to check in.");
         return;
       }
 
       await fetchCurrentLocation();
       setStep("capture");
+    } catch (e: any) {
+      Alert.alert(
+        "Could not enable camera/location",
+        e?.message ?? "Please check your browser/app permissions and try again."
+      );
     } finally {
       setIsPreparing(false);
     }
   };
 
   const handleCapture = async () => {
-    if (!cameraRef.current) return;
+    if (!cameraRef.current || isCapturing) return;
+    setIsCapturing(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
       if (!photo) throw new Error("No photo returned");
@@ -113,10 +121,13 @@ export const CheckInScreen = ({ navigation }: any) => {
       setStep("review");
     } catch (e) {
       Alert.alert("Failed to capture photo. Please try again.");
+    } finally {
+      setIsCapturing(false);
     }
   };
 
   const handleConfirmCheckIn = async () => {
+    if (isSubmitting) return; // ignore rapid repeat taps while a request is in flight
     if (!photoPath || latitude === null || longitude === null || gpsAccuracy === null) {
       Alert.alert("Missing photo or location data — please retake.");
       return;
@@ -221,7 +232,11 @@ export const CheckInScreen = ({ navigation }: any) => {
 
           {/* Capture Controls */}
           <View style={styles.controlsBar}>
-            <TouchableOpacity style={styles.captureBtn} onPress={handleCapture} disabled={!cameraPermission?.granted}>
+            <TouchableOpacity
+              style={[styles.captureBtn, isCapturing && styles.buttonDisabled]}
+              onPress={handleCapture}
+              disabled={!cameraPermission?.granted || isCapturing}
+            >
               <View style={styles.captureBtnInner} />
             </TouchableOpacity>
           </View>

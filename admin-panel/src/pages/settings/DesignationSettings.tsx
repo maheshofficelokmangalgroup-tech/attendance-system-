@@ -13,6 +13,7 @@ const DesignationSettings: React.FC = () => {
   const [newName, setNewName] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     apiClient.get("/departments?company_id=1&page_size=100")
@@ -32,24 +33,40 @@ const DesignationSettings: React.FC = () => {
   }, [selectedDept]);
 
   const create = async () => {
-    if (!newName.trim() || !selectedDept) return;
-    await apiClient.post("/designations", { department_id: selectedDept, name: newName.trim() });
-    setNewName("");
-    const { data } = await apiClient.get(`/designations?department_id=${selectedDept}`);
-    setItems(Array.isArray(data) ? data : data?.data ?? []);
+    if (!newName.trim() || !selectedDept || saving) return;
+    setSaving(true);
+    try {
+      await apiClient.post("/designations", { department_id: selectedDept, name: newName.trim() });
+      setNewName("");
+      const { data } = await apiClient.get(`/designations?department_id=${selectedDept}`);
+      setItems(Array.isArray(data) ? data : data?.data ?? []);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const update = async (id: number) => {
-    await apiClient.put(`/designations/${id}`, { name: editName });
-    setEditId(null);
-    const { data } = await apiClient.get(`/designations?department_id=${selectedDept}`);
-    setItems(Array.isArray(data) ? data : data?.data ?? []);
+    if (saving) return;
+    setSaving(true);
+    try {
+      await apiClient.put(`/designations/${id}`, { name: editName });
+      setEditId(null);
+      const { data } = await apiClient.get(`/designations?department_id=${selectedDept}`);
+      setItems(Array.isArray(data) ? data : data?.data ?? []);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (id: number) => {
-    if (!confirm("Deactivate this designation?")) return;
-    await apiClient.delete(`/designations/${id}`);
-    setItems((prev) => prev.filter((d) => d.id !== id));
+    if (saving || !confirm("Deactivate this designation?")) return;
+    setSaving(true);
+    try {
+      await apiClient.delete(`/designations/${id}`);
+      setItems((prev) => prev.filter((d) => d.id !== id));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -77,7 +94,7 @@ const DesignationSettings: React.FC = () => {
             <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "12px" }}>ADD DESIGNATION</p>
             <div style={{ display: "flex", gap: "10px" }}>
               <input className="input" placeholder="Designation name…" value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} style={{ flex: 1 }} />
-              <button className="btn-primary" onClick={create} disabled={!newName.trim()}>
+              <button className="btn-primary" onClick={create} disabled={!newName.trim() || saving}>
                 <Plus size={15} /> Add
               </button>
             </div>

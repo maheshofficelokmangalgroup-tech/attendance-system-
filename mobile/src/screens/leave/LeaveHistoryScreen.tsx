@@ -25,6 +25,7 @@ interface LeaveRecord {
 export const LeaveHistoryScreen = ({ navigation }: any) => {
   const [leaves, setLeaves] = useState<LeaveRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   const loadData = () => {
     setIsLoading(true);
@@ -41,12 +42,16 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
   }, []);
 
   const handleCancel = async (id: number) => {
+    if (cancellingId !== null) return; // ignore rapid repeat taps while a request is in flight
+    setCancellingId(id);
     try {
       await apiClient.post(`/leaves/${id}/cancel`);
       Alert.alert("Leave request cancelled");
       loadData();
     } catch (e: any) {
       Alert.alert(e?.response?.data?.detail ?? "Failed to cancel leave");
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -85,10 +90,13 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
 
         {canCancel && (
           <TouchableOpacity
-            style={styles.cancelBtn}
+            style={[styles.cancelBtn, cancellingId === item.id && styles.buttonDisabled]}
             onPress={() => handleCancel(item.id)}
+            disabled={cancellingId !== null}
           >
-            <Text style={styles.cancelBtnText}>Cancel Request</Text>
+            <Text style={styles.cancelBtnText}>
+              {cancellingId === item.id ? "Cancelling…" : "Cancel Request"}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -210,6 +218,9 @@ const styles = StyleSheet.create({
   cancelBtn: {
     alignSelf: "flex-end",
     marginTop: spacing.xs,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   cancelBtnText: {
     color: "#E11D48",
