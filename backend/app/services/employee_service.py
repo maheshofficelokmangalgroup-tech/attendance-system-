@@ -12,7 +12,7 @@ from app.core.security import hash_password
 from app.models.employee import Employee
 from app.models.user import User
 from app.repository.employee_repo import EmployeeRepository
-from app.repository.user_repo import UserRepository
+from app.repository.user_repo import UserRepository, RefreshTokenRepository
 from app.repository.audit_repo import AuditRepository
 from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListItem
 from app.schemas.common import PaginatedResponse
@@ -23,6 +23,7 @@ class EmployeeService:
         self.db = db
         self.repo = EmployeeRepository(db)
         self.user_repo = UserRepository(db)
+        self.token_repo = RefreshTokenRepository(db)
         self.audit_repo = AuditRepository(db)
 
     def create(
@@ -70,10 +71,11 @@ class EmployeeService:
         )
         self.repo.create(employee)
 
-        # Create linked user account (default password = Employee code — must change on first login)
+        # Create linked user account. Admin may set an explicit initial password;
+        # otherwise it defaults to the employee code — must change on first login.
         user = User(
             email=payload.email.lower(),
-            password_hash=hash_password(payload.employee_code),
+            password_hash=hash_password(payload.password or payload.employee_code),
             role_id=payload.role_id,
             employee_id=employee.id,
         )
@@ -146,7 +148,35 @@ class EmployeeService:
         employee = self.repo.get_with_details(employee_id)
         if not employee:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
-        return EmployeeResponse.model_validate(employee)
+        data = EmployeeResponse.model_validate(employee)
+        data.role_id = employee.user.role_id if employee.user else None
+        return data
+
+    def reset_password(
+        self,
+        employee_id: int,
+        new_password: str,
+        actor_id: int,
+        ip: Optional[str] = None,
+    ) -> None:
+        employee = self.repo.get_with_details(employee_id)
+        if not employee:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+        if not employee.user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This employee has no login account")
+
+        employee.user.password_hash = hash_password(new_password)
+        # Force re-login everywhere so a stolen/old session can't outlive the reset
+        self.token_repo.revoke_all_for_user(employee.user.id)
+
+        self.audit_repo.log(
+            user_id=actor_id,
+            action="employee_password_reset",
+            entity_type="Employee",
+            entity_id=employee.id,
+            ip_address=ip,
+        )
+        self.db.commit()
 
     def list(
         self,

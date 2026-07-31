@@ -25,6 +25,8 @@ class EmployeeCreate(BaseModel):
     employment_type: EmploymentTypeEnum = EmploymentTypeEnum.FULL_TIME
     # Role for user account creation
     role_id: int
+    # Initial login password — if omitted, defaults to employee_code
+    password: Optional[str] = Field(None, min_length=6, max_length=100)
 
 
 class EmployeeUpdate(BaseModel):
@@ -88,10 +90,17 @@ class EmployeeResponse(BaseModel):
     designation: Optional[DesignationSummary]
     shift: Optional[ShiftSummary]
     manager_id: Optional[int]
+    # Role of the linked login account — not an Employee column, populated by
+    # the service layer from employee.user.role_id (needed for edit-form prefill).
+    role_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AdminSetPasswordRequest(BaseModel):
+    new_password: str = Field(..., min_length=6, max_length=100)
 
 
 class EmployeeListItem(BaseModel):

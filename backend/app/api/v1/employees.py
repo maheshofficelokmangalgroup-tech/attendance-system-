@@ -7,7 +7,10 @@ from app.core.database import get_db
 from app.auth.dependencies import get_current_user, require_permission
 from app.models.user import User
 from app.services.employee_service import EmployeeService
-from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListItem
+from app.schemas.employee import (
+    EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListItem,
+    AdminSetPasswordRequest,
+)
 from app.schemas.common import APIResponse, PaginatedResponse
 
 router = APIRouter(prefix="/employees", tags=["Employees"])
@@ -80,6 +83,26 @@ def update_employee(
     svc = EmployeeService(db)
     data = svc.update(employee_id, payload, actor_id=current_user.id, ip=request.client.host if request.client else None)
     return APIResponse(data=data, message="Employee updated")
+
+
+@router.post(
+    "/{employee_id}/reset-password",
+    response_model=APIResponse[None],
+    summary="Admin: set a new login password for an employee",
+)
+def reset_employee_password(
+    employee_id: int,
+    payload: AdminSetPasswordRequest,
+    request: Request,
+    current_user: User = Depends(require_permission("update", "employee")),
+    db: Session = Depends(get_db),
+):
+    svc = EmployeeService(db)
+    svc.reset_password(
+        employee_id, payload.new_password,
+        actor_id=current_user.id, ip=request.client.host if request.client else None,
+    )
+    return APIResponse(message="Password reset successfully")
 
 
 @router.delete(
