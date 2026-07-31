@@ -25,6 +25,7 @@ from app.schemas.leave import (
     TeamCalendarLeaveItem, LeaveEmployeeSummary, LeaveTypeResponse,
 )
 from app.schemas.common import PaginatedResponse
+from app.utils.timezone import today_ist
 
 
 class LeaveService:
@@ -41,7 +42,7 @@ class LeaveService:
 
     def get_my_balances(self, employee_id: int, year: Optional[int] = None) -> List[LeaveBalanceResponse]:
         if year is None:
-            year = date.today().year
+            year = today_ist().year
 
         employee = self.employee_repo.get(employee_id)
         if not employee:

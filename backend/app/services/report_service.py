@@ -21,6 +21,7 @@ from app.schemas.reports import (
     DashboardAnalyticsResponse, DailyTrendItem, DepartmentDistributionItem,
     ActivityFeedItem, MusterRollReportResponse, MusterRollRow, GenericReportResponse,
 )
+from app.utils.timezone import now_ist, today_ist
 
 
 class ReportService:
@@ -32,7 +33,7 @@ class ReportService:
     # ------------------------------------------------------------------
 
     def get_dashboard_analytics(self, company_id: int) -> DashboardAnalyticsResponse:
-        today = date.today()
+        today = today_ist()
 
         # 1. Total active employees
         total_employees = (
@@ -259,7 +260,7 @@ class ReportService:
         to_date: Optional[date] = None,
         department_id: Optional[int] = None,
     ) -> GenericReportResponse:
-        today = date.today()
+        today = today_ist()
         if not from_date:
             from_date = today.replace(day=1)
         if not to_date:
@@ -474,7 +475,7 @@ class ReportService:
         return GenericReportResponse(
             report_type=report_type,
             title=title,
-            generated_at=datetime.now(),
+            generated_at=now_ist(),
             headers=headers,
             rows=rows,
             total_records=len(rows),

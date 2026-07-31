@@ -10,6 +10,7 @@ from app.models.user import User
 from app.services.report_service import ReportService
 from app.schemas.reports import DashboardAnalyticsResponse, MusterRollReportResponse, GenericReportResponse
 from app.schemas.common import APIResponse
+from app.utils.timezone import today_ist
 
 router = APIRouter(prefix="/reports", tags=["Reports & Analytics"])
 
@@ -60,7 +61,7 @@ def export_report_csv(
 ):
     svc = ReportService(db)
     csv_content = svc.export_csv(report_type, company_id)
-    filename = f"{report_type}_report_{date.today().strftime('%Y%m%d')}.csv"
+    filename = f"{report_type}_report_{today_ist().strftime('%Y%m%d')}.csv"
 
     return Response(
         content=csv_content,

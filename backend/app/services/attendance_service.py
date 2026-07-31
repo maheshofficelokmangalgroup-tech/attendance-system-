@@ -21,6 +21,7 @@ from app.repository.audit_repo import AuditRepository
 from app.services.storage_service import get_storage_service
 from app.utils.geo import validate_gps_accuracy, validate_geofence, build_google_maps_url, reverse_geocode_sync
 from app.utils.image import validate_image_upload, generate_unique_filename
+from app.utils.timezone import now_ist, today_ist
 from app.schemas.attendance import (
     CheckInMetaData, CheckOutMetaData, AttendanceResponse,
     AttendanceTodaySummary, RegularizeAttendanceRequest,
@@ -50,8 +51,8 @@ class AttendanceService:
         filename: str,
         ip_address: Optional[str] = None,
     ) -> AttendanceResponse:
-        today = date.today()
-        now = datetime.now()
+        today = today_ist()
+        now = now_ist()
         current_time = now.time()
 
         employee = self.employee_repo.get(employee_id)
@@ -184,8 +185,8 @@ class AttendanceService:
         filename: str,
         ip_address: Optional[str] = None,
     ) -> AttendanceResponse:
-        today = date.today()
-        now = datetime.now()
+        today = today_ist()
+        now = now_ist()
         current_time = now.time()
 
         attendance = self.repo.get_by_employee_and_date(employee_id, today)
@@ -315,7 +316,7 @@ class AttendanceService:
         )
 
     def get_today_summary(self, company_id: int) -> AttendanceTodaySummary:
-        counts = self.repo.get_today_summary(company_id, date.today())
+        counts = self.repo.get_today_summary(company_id, today_ist())
         return AttendanceTodaySummary(**counts)
 
     def list_attendance(
