@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
 import { showAlert } from "../../utils/alert";
@@ -76,10 +77,14 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>Apply for Leave</Text>
+        <View style={styles.headerRow}>
+          <Feather name="edit-3" size={20} color={colors.textPrimary} />
+          <Text style={styles.header}>Apply for Leave</Text>
+        </View>
 
         {error ? (
           <View style={styles.errorBanner}>
+            <Feather name="alert-circle" size={14} color="#E11D48" />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
@@ -115,7 +120,10 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
             </View>
           )}
 
-          <Text style={styles.label}>From Date (YYYY-MM-DD) *</Text>
+          <View style={styles.labelRow}>
+            <Feather name="calendar" size={13} color={colors.textSecondary} />
+            <Text style={styles.label}>From Date (YYYY-MM-DD) *</Text>
+          </View>
           <TextInput
             style={styles.input}
             placeholder="YYYY-MM-DD"
@@ -123,7 +131,10 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
             onChangeText={setFromDate}
           />
 
-          <Text style={styles.label}>To Date (YYYY-MM-DD) *</Text>
+          <View style={styles.labelRow}>
+            <Feather name="calendar" size={13} color={colors.textSecondary} />
+            <Text style={styles.label}>To Date (YYYY-MM-DD) *</Text>
+          </View>
           <TextInput
             style={styles.input}
             placeholder="YYYY-MM-DD"
@@ -131,7 +142,10 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
             onChangeText={setToDate}
           />
 
-          <Text style={styles.label}>Total Days *</Text>
+          <View style={styles.labelRow}>
+            <Feather name="hash" size={13} color={colors.textSecondary} />
+            <Text style={styles.label}>Total Days *</Text>
+          </View>
           <TextInput
             style={styles.input}
             placeholder="1.0"
@@ -140,7 +154,10 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
             onChangeText={setTotalDays}
           />
 
-          <Text style={styles.label}>Reason</Text>
+          <View style={styles.labelRow}>
+            <Feather name="message-square" size={13} color={colors.textSecondary} />
+            <Text style={styles.label}>Reason</Text>
+          </View>
           <TextInput
             style={[styles.input, styles.textArea]}
             placeholder="State the reason for your leave request…"
@@ -154,11 +171,15 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
             style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
             onPress={handleSubmit}
             disabled={isSubmitting}
+            activeOpacity={0.85}
           >
             {isSubmitting ? (
               <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={styles.submitButtonText}>Submit Leave Application</Text>
+              <>
+                <Feather name="send" size={15} color="#FFF" />
+                <Text style={styles.submitButtonText}>Submit Leave Application</Text>
+              </>
             )}
           </TouchableOpacity>
         </View>
@@ -175,13 +196,21 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: spacing.lg,
+  },
   header: {
     fontSize: 22,
     fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: spacing.lg,
   },
   errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     backgroundColor: "rgba(225, 29, 72, 0.12)",
     borderColor: "rgba(225, 29, 72, 0.3)",
     borderWidth: 1,
@@ -258,12 +287,17 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: spacing.xs,
+    marginTop: spacing.sm,
+  },
   label: {
     fontSize: 13,
     fontWeight: "600",
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
-    marginTop: spacing.sm,
   },
   input: {
     backgroundColor: colors.background,
@@ -280,6 +314,9 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   submitButton: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
     backgroundColor: colors.primary,
     borderRadius: radius.button,
     paddingVertical: spacing.md,

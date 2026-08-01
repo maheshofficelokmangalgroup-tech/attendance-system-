@@ -10,10 +10,22 @@ import { useSelector, useDispatch } from "react-redux";
 import { colors, radius, spacing } from "../../theme/tokens";
 import { RootState } from "../../redux/store";
 import { clearAuth } from "../../redux/slices/authSlice";
+import apiClient from "../../api/client";
 
 export const ProfileScreen = () => {
   const dispatch = useDispatch();
   const user = useSelector((state: RootState) => state.auth.user);
+  const refreshToken = useSelector((state: RootState) => state.auth.refresh_token);
+
+  const handleLogout = () => {
+    // Best-effort: revoke the refresh token server-side so it can't be
+    // replayed. Log out locally either way — a failed revoke shouldn't
+    // trap the user in a signed-in state.
+    if (refreshToken) {
+      apiClient.post("/auth/logout", { refresh_token: refreshToken }).catch(() => {});
+    }
+    dispatch(clearAuth());
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -46,7 +58,7 @@ export const ProfileScreen = () => {
 
         <TouchableOpacity
           style={styles.logoutButton}
-          onPress={() => dispatch(clearAuth())}
+          onPress={handleLogout}
         >
           <Text style={styles.logoutButtonText}>Sign Out</Text>
         </TouchableOpacity>

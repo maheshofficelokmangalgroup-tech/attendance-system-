@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,8 +10,11 @@ import {
   Image,
   ScrollView,
   Linking,
+  RefreshControl,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
 
@@ -46,22 +49,38 @@ interface AttendanceDetail extends AttendanceRecord {
   checkout_task_summary?: string | null;
 }
 
-export const AttendanceHistoryScreen = ({ navigation }: any) => {
+export const AttendanceHistoryScreen = () => {
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [selectedDetail, setSelectedDetail] = useState<AttendanceDetail | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  useEffect(() => {
+  const loadData = () => {
     apiClient.get("/attendance/my-history?page_size=30")
       .then(({ data }) => {
         setHistory(Array.isArray(data) ? data : data?.data ?? []);
       })
       .catch(console.error)
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        setIsLoading(false);
+        setRefreshing(false);
+      });
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    }
+  }, [isLoading]);
 
   const openDetail = (id: number) => {
     setIsModalVisible(true);
@@ -100,23 +119,35 @@ export const AttendanceHistoryScreen = ({ navigation }: any) => {
         </View>
 
         <View style={styles.timeRow}>
-          <View>
-            <Text style={styles.timeLabel}>Check-In</Text>
-            <Text style={styles.timeValue}>{item.check_in_time ?? "—"}</Text>
+          <View style={styles.timeCell}>
+            <Feather name="log-in" size={13} color={colors.textSecondary} />
+            <View>
+              <Text style={styles.timeLabel}>Check-In</Text>
+              <Text style={styles.timeValue}>{item.check_in_time ?? "—"}</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.timeLabel}>Check-Out</Text>
-            <Text style={styles.timeValue}>{item.check_out_time ?? "—"}</Text>
+          <View style={styles.timeCell}>
+            <Feather name="log-out" size={13} color={colors.textSecondary} />
+            <View>
+              <Text style={styles.timeLabel}>Check-Out</Text>
+              <Text style={styles.timeValue}>{item.check_out_time ?? "—"}</Text>
+            </View>
           </View>
-          <View>
-            <Text style={styles.timeLabel}>Hours</Text>
-            <Text style={styles.timeValue}>
-              {item.working_hours ? `${item.working_hours}h` : "—"}
-            </Text>
+          <View style={styles.timeCell}>
+            <Feather name="clock" size={13} color={colors.textSecondary} />
+            <View>
+              <Text style={styles.timeLabel}>Hours</Text>
+              <Text style={styles.timeValue}>
+                {item.working_hours ? `${item.working_hours}h` : "—"}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <Text style={styles.tapHint}>Tap for photo, location & task details →</Text>
+        <View style={styles.tapHintRow}>
+          <Text style={styles.tapHint}>Tap for photo, location & task details</Text>
+          <Feather name="chevron-right" size={14} color={colors.primary} />
+        </View>
       </TouchableOpacity>
     );
   };
@@ -125,29 +156,30 @@ export const AttendanceHistoryScreen = ({ navigation }: any) => {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.header}>
+          <Feather name="clock" size={20} color={colors.textPrimary} />
           <Text style={styles.title}>Attendance History</Text>
-          <TouchableOpacity
-            style={styles.checkInCta}
-            onPress={() => navigation.navigate("CheckIn")}
-          >
-            <Text style={styles.checkInCtaText}>+ Check In</Text>
-          </TouchableOpacity>
         </View>
 
         {isLoading ? (
           <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 40 }} />
         ) : (
-          <FlatList
-            data={history}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={renderItem}
-            contentContainerStyle={styles.list}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No attendance records logged yet.</Text>
-              </View>
-            }
-          />
+          <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+            <FlatList
+              data={history}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={renderItem}
+              contentContainerStyle={styles.list}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Feather name="calendar" size={32} color={colors.textSecondary} style={{ marginBottom: 12 }} />
+                  <Text style={styles.emptyText}>No attendance records logged yet.</Text>
+                </View>
+              }
+            />
+          </Animated.View>
         )}
       </View>
 
@@ -261,25 +293,14 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
     marginBottom: spacing.lg,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
     color: colors.textPrimary,
-  },
-  checkInCta: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: radius.button,
-  },
-  checkInCtaText: {
-    color: "#FFF",
-    fontWeight: "600",
-    fontSize: 13,
   },
   list: {
     paddingBottom: spacing.xl,
@@ -319,6 +340,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  timeCell: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   timeLabel: {
     fontSize: 11,
     color: colors.textSecondary,
@@ -329,11 +355,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.textPrimary,
   },
+  tapHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: spacing.sm,
+  },
   tapHint: {
     fontSize: 11,
     color: colors.primary,
-    marginTop: spacing.sm,
-    textAlign: "right",
   },
   emptyContainer: {
     padding: 40,

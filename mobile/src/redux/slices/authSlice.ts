@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { setAuthToken } from "../../api/client";
+import { setAuthToken, setRefreshTokenValue } from "../../api/client";
 
 interface UserProfile {
   id: number;
@@ -41,6 +41,15 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.is_authenticated = true;
       setAuthToken(action.payload.access_token);
+      setRefreshTokenValue(action.payload.refresh_token);
+    },
+    // Fired after a silent background token refresh — updates the tokens
+    // only, leaving `user` untouched (see api/client.ts performRefresh()).
+    updateTokens(state, action: PayloadAction<{ access_token: string; refresh_token: string }>) {
+      state.access_token = action.payload.access_token;
+      state.refresh_token = action.payload.refresh_token;
+      setAuthToken(action.payload.access_token);
+      setRefreshTokenValue(action.payload.refresh_token);
     },
     clearAuth(state) {
       state.access_token = null;
@@ -48,9 +57,10 @@ const authSlice = createSlice({
       state.user = null;
       state.is_authenticated = false;
       setAuthToken(null);
+      setRefreshTokenValue(null);
     },
   },
 });
 
-export const { setAuth, clearAuth } = authSlice.actions;
+export const { setAuth, updateTokens, clearAuth } = authSlice.actions;
 export default authSlice.reducer;

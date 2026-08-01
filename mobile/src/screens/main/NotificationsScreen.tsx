@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,30 +7,36 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { useDispatch, useSelector } from "react-redux";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
+import { setNotifications, markAsRead, NotificationItem } from "../../redux/slices/notificationSlice";
+import { RootState, AppDispatch } from "../../redux/store";
 
-interface NotificationItem {
-  id: number;
-  title: string;
-  body: string;
-  type: string;
-  is_read: boolean;
-  created_at: string;
-}
+const ICONS_BY_TYPE: Record<string, keyof typeof Feather.glyphMap> = {
+  leave_approved: "check-circle",
+  leave_rejected: "x-circle",
+  leave_first_approved: "check-circle",
+  leave_applied: "calendar",
+  attendance_flag: "alert-triangle",
+};
 
 export const NotificationsScreen = () => {
-  const [items, setItems] = useState<NotificationItem[]>([]);
+  const dispatch = useDispatch<AppDispatch>();
+  const items = useSelector((state: RootState) => state.notifications.items);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = async () => {
     try {
       const response = await apiClient.get("/notifications?page_size=50");
       const list = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
-      setItems(list);
+      dispatch(setNotifications(list));
     } catch (err) {
       console.error(err);
     } finally {
@@ -43,28 +49,43 @@ export const NotificationsScreen = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!isLoading) {
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+    }
+  }, [isLoading]);
+
   const handleMarkRead = async (id: number) => {
     try {
       await apiClient.post(`/notifications/${id}/read`);
-      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, is_read: true } : item)));
+      dispatch(markAsRead(id));
     } catch (err) {
       console.error(err);
     }
   };
 
   const renderItem = ({ item }: { item: NotificationItem }) => {
+    const iconName = ICONS_BY_TYPE[item.type] ?? "bell";
     return (
       <TouchableOpacity
         style={[styles.card, !item.is_read && styles.unreadCard]}
         onPress={() => !item.is_read && handleMarkRead(item.id)}
+        activeOpacity={0.7}
       >
-        <View style={styles.cardHeader}>
-          <Text style={[styles.cardTitle, !item.is_read && styles.unreadTitle]}>{item.title}</Text>
-          <Text style={styles.cardTime}>
-            {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-          </Text>
+        <View style={[styles.iconBadge, !item.is_read && styles.iconBadgeUnread]}>
+          <Feather name={iconName} size={16} color={item.is_read ? colors.textSecondary : colors.primary} />
         </View>
-        <Text style={styles.cardBody}>{item.body}</Text>
+        <View style={{ flex: 1 }}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, !item.is_read && styles.unreadTitle]}>{item.title}</Text>
+            <Text style={styles.cardTime}>
+              {new Date(item.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+            </Text>
+          </View>
+          <Text style={styles.cardBody}>{item.body}</Text>
+        </View>
+        {!item.is_read && <View style={styles.unreadDot} />}
       </TouchableOpacity>
     );
   };
@@ -72,27 +93,33 @@ export const NotificationsScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.header}>Notifications</Text>
+        <View style={styles.headerRow}>
+          <Feather name="bell" size={20} color={colors.textPrimary} />
+          <Text style={styles.header}>Notifications</Text>
+        </View>
 
         {isLoading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
         ) : (
-          <FlatList
-            data={items}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={renderItem}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyTitle}>No notifications yet</Text>
-                <Text style={styles.emptyText}>
-                  You will receive push notifications when leave requests get approved or attendance flags are raised.
-                </Text>
-              </View>
-            }
-          />
+          <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+            <FlatList
+              data={items}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={renderItem}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Feather name="bell-off" size={32} color={colors.textSecondary} style={{ marginBottom: 12 }} />
+                  <Text style={styles.emptyTitle}>No notifications yet</Text>
+                  <Text style={styles.emptyText}>
+                    You will receive push notifications when leave requests get approved or attendance flags are raised.
+                  </Text>
+                </View>
+              }
+            />
+          </Animated.View>
         )}
       </View>
     </SafeAreaView>
@@ -108,13 +135,21 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.lg,
   },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: spacing.lg,
+  },
   header: {
     fontSize: 22,
     fontWeight: "700",
     color: colors.textPrimary,
-    marginBottom: spacing.lg,
   },
   card: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     padding: spacing.md,
@@ -125,6 +160,24 @@ const styles = StyleSheet.create({
   unreadCard: {
     backgroundColor: "rgba(79, 70, 229, 0.06)",
     borderColor: "rgba(79, 70, 229, 0.25)",
+  },
+  iconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
+  iconBadgeUnread: {
+    backgroundColor: "rgba(79, 70, 229, 0.12)",
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginTop: 6,
   },
   cardHeader: {
     flexDirection: "row",
