@@ -1,5 +1,4 @@
 """Backend entry point — run with: uvicorn main:app --reload"""
-# CI/CD trigger: verifying GitHub Actions -> AWS deploy pipeline
 from app.main import app  # noqa: F401 — re-export for uvicorn
 
 if __name__ == "__main__":
