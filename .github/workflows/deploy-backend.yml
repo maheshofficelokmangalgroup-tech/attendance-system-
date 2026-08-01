@@ -1,0 +1,48 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy — build, migrate, restart (attendance_backend only)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/ubuntu/attendance-system/repo
+            git fetch origin main
+            git reset --hard origin/main
+
+            cd backend
+            sudo docker build -t attendance-backend:latest .
+
+            # Apply any new migrations before swapping the container over.
+            sudo docker run --rm --env-file .env attendance-backend:latest \
+              python -m alembic upgrade head
+
+            # Recreate only the attendance_backend container — every other
+            # container on this host (padvidhar_backend, padvidhar_nginx,
+            # padvidhar_certbot, attendance_nginx) is untouched.
+            sudo docker stop attendance_backend || true
+            sudo docker rm attendance_backend || true
+            sudo docker run -d --name attendance_backend \
+              --network attendance_network --network-alias backend \
+              --env-file /home/ubuntu/attendance-system/repo/backend/.env \
+              -p 127.0.0.1:8001:8000 \
+              --restart unless-stopped \
+              attendance-backend:latest
+
+            sleep 5
+            curl -f http://127.0.0.1:8001/health
