@@ -104,7 +104,7 @@ const EmployeeForm: React.FC = () => {
       apiClient.get("/departments?company_id=1&page_size=100"),
       apiClient.get("/shifts?company_id=1"),
     ]).then(([depts, shiftsRes]) => {
-      setDepartments((depts.data as { data?: SelectOption[] })?.data ?? []);
+      setDepartments((Array.isArray(depts.data) ? depts.data : (depts.data as { data?: SelectOption[] })?.data) ?? []);
       setShifts((Array.isArray(shiftsRes.data) ? shiftsRes.data : shiftsRes.data?.data) ?? []);
     }).catch(console.error);
   }, []);

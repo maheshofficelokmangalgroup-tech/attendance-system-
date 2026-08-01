@@ -18,7 +18,7 @@ const DesignationSettings: React.FC = () => {
   useEffect(() => {
     apiClient.get("/departments?company_id=1&page_size=100")
       .then(({ data }) => {
-        const list: Department[] = (data as { data?: Department[] })?.data ?? [];
+        const list: Department[] = (Array.isArray(data) ? data : (data as { data?: Department[] })?.data) ?? [];
         setDepartments(list);
         if (list.length > 0) setSelectedDept(list[0].id);
       }).catch(console.error);

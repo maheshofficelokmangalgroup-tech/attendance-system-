@@ -16,7 +16,7 @@ const DepartmentSettings: React.FC = () => {
   const load = () => {
     setIsLoading(true);
     apiClient.get("/departments?company_id=1&page_size=100")
-      .then(({ data }) => setItems((data as { data?: Department[] })?.data ?? []))
+      .then(({ data }) => setItems((Array.isArray(data) ? data : (data as { data?: Department[] })?.data) ?? []))
       .catch(() => setError("Failed to load departments"))
       .finally(() => setIsLoading(false));
   };

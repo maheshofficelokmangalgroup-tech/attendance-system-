@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password
 from app.models.employee import Employee
 from app.models.user import User
+from app.models.company import Department, Designation, Shift
 from app.repository.employee_repo import EmployeeRepository
 from app.repository.user_repo import UserRepository, RefreshTokenRepository
 from app.repository.audit_repo import AuditRepository
@@ -25,6 +26,18 @@ class EmployeeService:
         self.user_repo = UserRepository(db)
         self.token_repo = RefreshTokenRepository(db)
         self.audit_repo = AuditRepository(db)
+
+    def _validate_refs(self, department_id=None, designation_id=None, shift_id=None) -> None:
+        """Reject nonexistent department/designation/shift ids with a clean 400
+        instead of letting them hit the DB as a foreign-key IntegrityError —
+        a bad value here used to 500 and roll back the *entire* update,
+        silently discarding every other field change in the same request."""
+        if department_id is not None and not self.db.get(Department, department_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Department ID {department_id} not found")
+        if designation_id is not None and not self.db.get(Designation, designation_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Designation ID {designation_id} not found")
+        if shift_id is not None and not self.db.get(Shift, shift_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Shift ID {shift_id} not found")
 
     def create(
         self,
@@ -57,6 +70,7 @@ class EmployeeService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Role ID {payload.role_id} not found",
             )
+        self._validate_refs(payload.department_id, payload.designation_id, payload.shift_id)
 
         employee = Employee(
             company_id=payload.company_id,
@@ -113,11 +127,19 @@ class EmployeeService:
 
         before = {"is_active": employee.is_active, "department_id": employee.department_id}
         update_data = payload.model_dump(exclude_unset=True)
+        self._validate_refs(
+            update_data.get("department_id"),
+            update_data.get("designation_id"),
+            update_data.get("shift_id"),
+        )
 
         # Handle role update separately (it's on the User model, not Employee)
         role_id = update_data.pop("role_id", None)
-        if role_id is not None and employee.user:
-            employee.user.role_id = role_id
+        if role_id is not None:
+            if not self.user_repo.get_role_by_id(role_id):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Role ID {role_id} not found")
+            if employee.user:
+                employee.user.role_id = role_id
 
         for field, value in update_data.items():
             setattr(employee, field, value)
