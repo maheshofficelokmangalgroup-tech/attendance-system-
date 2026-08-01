@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// Production Render backend API URL
-const BASE_URL = "https://attendance-system-g9hk.onrender.com/api/v1";
+// Production backend API URL — self-hosted on AWS (EC2 + RDS)
+const BASE_URL = "https://13-205-79-72.nip.io:8443/api/v1";
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
