@@ -6,7 +6,10 @@ from app.core.security import validate_password_strength
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Accepts either a real email address or a username (e.g. "Rohan@YRK").
+    # Kept as a plain string (not EmailStr) specifically so username-style
+    # logins aren't rejected at the validation layer.
+    email: str = Field(min_length=1)
     password: str
 
 

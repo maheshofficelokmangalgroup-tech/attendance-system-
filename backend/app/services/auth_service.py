@@ -38,7 +38,7 @@ class AuthService:
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
     ) -> TokenResponse:
-        user = self.user_repo.get_by_email(payload.email)
+        user = self.user_repo.get_by_username_or_email(payload.email)
         if not user or not verify_password(payload.password, user.password_hash):
             # Log the failed attempt before raising
             self.audit_repo.log(
@@ -50,7 +50,7 @@ class AuthService:
             self.db.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
+                detail="Invalid email/username or password",
             )
         if not user.is_active:
             raise HTTPException(

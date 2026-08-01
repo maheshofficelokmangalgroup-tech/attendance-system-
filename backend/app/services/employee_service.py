@@ -44,6 +44,12 @@ class EmployeeService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Email '{payload.email}' already in use",
             )
+        # Guard: unique username
+        if payload.username and self.user_repo.get_by_username_or_email(payload.username):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Username '{payload.username}' already in use",
+            )
         # Guard: role exists
         role = self.user_repo.get_role_by_id(payload.role_id)
         if not role:
@@ -75,6 +81,7 @@ class EmployeeService:
         # otherwise it defaults to the employee code — must change on first login.
         user = User(
             email=payload.email.lower(),
+            username=payload.username,
             password_hash=hash_password(payload.password or payload.employee_code),
             role_id=payload.role_id,
             employee_id=employee.id,

@@ -27,6 +27,9 @@ class EmployeeCreate(BaseModel):
     role_id: int
     # Initial login password — if omitted, defaults to employee_code
     password: Optional[str] = Field(None, min_length=6, max_length=100)
+    # Optional alternate login identifier (e.g. "Rohan@YRK") for employees who
+    # log in with a username instead of their email address.
+    username: Optional[str] = Field(None, max_length=150)
 
 
 class EmployeeUpdate(BaseModel):

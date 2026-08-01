@@ -9,7 +9,7 @@ import apiClient from "@/api/client";
 import { setAuth } from "@/store/authSlice";
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email"),
+  email: z.string().min(1, "Email or username is required"),
   password: z.string().min(1, "Password is required"),
 });
 type LoginForm = z.infer<typeof loginSchema>;
@@ -111,13 +111,13 @@ export const LoginPage: React.FC = () => {
           {/* Email */}
           <div>
             <label style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#94A3B8", marginBottom: "8px" }}>
-              Email address
+              Email or Username
             </label>
             <input
               {...register("email")}
-              type="email"
-              autoComplete="email"
-              placeholder="admin@company.com"
+              type="text"
+              autoComplete="username"
+              placeholder="admin@company.com or Rohan@YRK"
               style={{
                 width: "100%", padding: "12px 14px", borderRadius: "10px",
                 background: "rgba(15, 23, 42, 0.6)",

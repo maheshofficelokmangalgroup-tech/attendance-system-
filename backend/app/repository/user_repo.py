@@ -2,6 +2,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.user import User, RefreshToken, Role
@@ -17,6 +18,20 @@ class UserRepository(BaseRepository[User]):
             self.db.query(User)
             .options(joinedload(User.role), joinedload(User.employee))
             .filter(User.email == email.lower())
+            .first()
+        )
+
+    def get_by_username_or_email(self, identifier: str) -> Optional[User]:
+        """Login lookup: matches either the real email or the username
+        (e.g. "Rohan@YRK"), whichever was provided. Username comparison is
+        case-insensitive to match how people actually type it."""
+        return (
+            self.db.query(User)
+            .options(joinedload(User.role), joinedload(User.employee))
+            .filter(
+                (User.email == identifier.lower())
+                | (User.username.isnot(None) & (func.lower(User.username) == identifier.lower()))
+            )
             .first()
         )
 

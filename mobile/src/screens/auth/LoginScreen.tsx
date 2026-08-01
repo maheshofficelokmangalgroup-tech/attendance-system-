@@ -67,14 +67,14 @@ export const LoginScreen = ({ navigation }: any) => {
         ) : null}
 
         <View style={styles.form}>
-          <Text style={styles.label}>Email Address</Text>
+          <Text style={styles.label}>Username or Email</Text>
           <TextInput
             style={styles.input}
-            placeholder="employee@company.com"
+            placeholder="e.g. Rohan@YRK"
             placeholderTextColor={colors.textSecondary}
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
+            keyboardType="default"
             autoCapitalize="none"
           />
 

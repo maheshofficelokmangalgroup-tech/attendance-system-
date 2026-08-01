@@ -74,6 +74,10 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String(200), nullable=False, unique=True, index=True)
+    # Alternate login identifier (e.g. "Rohan@YRK") for employees who log in
+    # with a username instead of a real email address. Nullable — admin/HR
+    # accounts created with a real email don't need one.
+    username: Mapped[Optional[str]] = mapped_column(String(150), nullable=True, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(200), nullable=False)
     role_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False, index=True

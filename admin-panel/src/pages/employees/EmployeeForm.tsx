@@ -21,6 +21,7 @@ const schema = z.object({
   employment_type: z.enum(["full_time", "part_time", "contract", "intern"]),
   is_active: z.boolean().optional(),
   password: z.union([z.string().min(6, "Min 6 characters"), z.literal("")]).optional(),
+  username: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -75,7 +76,7 @@ const EmployeeForm: React.FC = () => {
   const [shifts, setShifts] = useState<SelectOption[]>([]);
   const [isLoadingEmployee, setIsLoadingEmployee] = useState(isEdit);
   const [serverError, setServerError] = useState("");
-  const [credentialsResult, setCredentialsResult] = useState<{ email: string; password: string; mode: "created" | "reset" } | null>(null);
+  const [credentialsResult, setCredentialsResult] = useState<{ email: string; username?: string; password: string; mode: "created" | "reset" } | null>(null);
   const [copied, setCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -158,6 +159,7 @@ const EmployeeForm: React.FC = () => {
         // (see EmployeeService.create) — surface whichever was actually used.
         setCredentialsResult({
           email: values.email,
+          username: values.username || undefined,
           password: values.password || values.employee_code,
           mode: "created",
         });
@@ -214,8 +216,14 @@ const EmployeeForm: React.FC = () => {
           </p>
 
           <div style={{ background: "var(--color-background)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "18px", textAlign: "left", marginBottom: "20px" }}>
+            {credentialsResult.username && (
+              <div style={{ marginBottom: "12px" }}>
+                <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "2px" }}>USERNAME (LOGIN)</p>
+                <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "monospace" }}>{credentialsResult.username}</p>
+              </div>
+            )}
             <div style={{ marginBottom: "12px" }}>
-              <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "2px" }}>EMAIL (LOGIN)</p>
+              <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "2px" }}>EMAIL{credentialsResult.username ? "" : " (LOGIN)"}</p>
               <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text-primary)", fontFamily: "monospace" }}>{credentialsResult.email}</p>
             </div>
             <div>
@@ -306,6 +314,12 @@ const EmployeeForm: React.FC = () => {
               <input className="input" type="date" {...register("date_of_joining")} />
             </FormField>
           </div>
+
+          {!isEdit && (
+            <FormField label="Username (optional)" error={errors.username?.message}>
+              <input className="input" {...register("username")} placeholder="e.g. Rohan@YRK — leave blank to log in with email" />
+            </FormField>
+          )}
 
           {!isEdit && (
             <FormField label="Login Password" error={errors.password?.message}>
