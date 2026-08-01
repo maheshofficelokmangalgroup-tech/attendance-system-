@@ -193,6 +193,7 @@ class AuthService:
                 role=user.role.slug,
                 role_name=user.role.name,
                 employee_id=user.employee_id,
+                employee_code=employee.employee_code if employee else None,
                 full_name=employee.full_name if employee else None,
             ),
         )

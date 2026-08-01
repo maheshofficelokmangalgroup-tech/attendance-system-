@@ -92,6 +92,7 @@ def me(current_user: User = Depends(get_current_user)):
             role=current_user.role.slug,
             role_name=current_user.role.name,
             employee_id=current_user.employee_id,
+            employee_code=employee.employee_code if employee else None,
             full_name=employee.full_name if employee else None,
         )
     )

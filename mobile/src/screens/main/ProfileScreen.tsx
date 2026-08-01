@@ -51,7 +51,7 @@ export const ProfileScreen = () => {
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Employee ID</Text>
             <Text style={styles.rowValue}>
-              {user?.employee_id ? `#${user.employee_id}` : "Not Linked"}
+              {user?.employee_code ?? "Not Linked"}
             </Text>
           </View>
         </View>

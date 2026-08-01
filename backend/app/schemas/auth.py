@@ -26,7 +26,10 @@ class UserInToken(BaseModel):
     email: str
     role: str           # slug
     role_name: str
+    # employee_id is the internal employees.id PK — never show this to users.
+    # employee_code is the human-facing ID (e.g. "009") from the HR sheet.
     employee_id: int | None
+    employee_code: str | None
     full_name: str | None
 
     model_config = {"from_attributes": True}

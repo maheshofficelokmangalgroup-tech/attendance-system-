@@ -6,7 +6,9 @@ interface UserProfile {
   email: string;
   role: string;
   role_name: string;
+  // Internal employees.id PK — not human-facing, use employee_code for display.
   employee_id: number | null;
+  employee_code: string | null;
   full_name: string | null;
 }
 
