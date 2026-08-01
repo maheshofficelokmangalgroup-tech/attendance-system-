@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
+import { showAlert } from "../../utils/alert";
 
 interface Balance {
   leave_type_id: number;
@@ -64,7 +64,7 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
         reason: reason.trim() || undefined,
       });
 
-      Alert.alert("Leave application submitted successfully!");
+      showAlert("Leave application submitted successfully!");
       navigation.goBack();
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? "Failed to submit leave application");

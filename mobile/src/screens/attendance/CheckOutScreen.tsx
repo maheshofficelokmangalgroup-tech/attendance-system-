@@ -8,7 +8,6 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
-  Alert,
   KeyboardAvoidingView,
   ScrollView,
 } from "react-native";
@@ -17,6 +16,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { colors, radius, spacing, shadows } from "../../theme/tokens";
 import apiClient from "../../api/client";
+import { showAlert } from "../../utils/alert";
 
 type Step = "primer" | "capture" | "review" | "success";
 
@@ -81,7 +81,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
         // Reverse geocoding is best-effort — keep the coordinate fallback if it fails.
       }
     } catch {
-      Alert.alert("Could not get your location. Please enable GPS and retry.");
+      showAlert("Could not get your location. Please enable GPS and retry.");
     }
   };
 
@@ -98,14 +98,14 @@ export const CheckOutScreen = ({ navigation }: any) => {
       const locationStatus = await Location.requestForegroundPermissionsAsync();
 
       if (!cameraGranted || locationStatus.status !== "granted") {
-        Alert.alert("Permissions Required", "Camera and Location permissions are both required to check out.");
+        showAlert("Permissions Required", "Camera and Location permissions are both required to check out.");
         return;
       }
 
       await fetchCurrentLocation();
       setStep("capture");
     } catch (e: any) {
-      Alert.alert(
+      showAlert(
         "Could not enable camera/location",
         e?.message ?? "Please check your browser/app permissions and try again."
       );
@@ -123,7 +123,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
       setPhotoPath(photo.uri);
       setStep("review");
     } catch (e) {
-      Alert.alert("Failed to capture photo. Please try again.");
+      showAlert("Failed to capture photo. Please try again.");
     } finally {
       setIsCapturing(false);
     }
@@ -132,7 +132,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
   const handleConfirmCheckOut = async () => {
     if (isSubmitting) return; // ignore rapid repeat taps while a request is in flight
     if (!photoPath || latitude === null || longitude === null || gpsAccuracy === null) {
-      Alert.alert("Missing photo or location data — please retake.");
+      showAlert("Missing photo or location data — please retake.");
       return;
     }
     setIsSubmitting(true);
@@ -177,7 +177,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
         navigation.goBack();
       }, 2000);
     } catch (e: any) {
-      Alert.alert(e?.response?.data?.detail ?? "Check-out failed");
+      showAlert(e?.response?.data?.detail ?? "Check-out failed");
     } finally {
       setIsSubmitting(false);
     }

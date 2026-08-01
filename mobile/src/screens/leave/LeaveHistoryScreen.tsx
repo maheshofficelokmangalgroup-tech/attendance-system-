@@ -6,11 +6,11 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
+import { showAlert } from "../../utils/alert";
 
 interface LeaveRecord {
   id: number;
@@ -46,10 +46,10 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
     setCancellingId(id);
     try {
       await apiClient.post(`/leaves/${id}/cancel`);
-      Alert.alert("Leave request cancelled");
+      showAlert("Leave request cancelled");
       loadData();
     } catch (e: any) {
-      Alert.alert(e?.response?.data?.detail ?? "Failed to cancel leave");
+      showAlert(e?.response?.data?.detail ?? "Failed to cancel leave");
     } finally {
       setCancellingId(null);
     }

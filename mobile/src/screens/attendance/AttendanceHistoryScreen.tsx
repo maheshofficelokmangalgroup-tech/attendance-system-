@@ -79,8 +79,8 @@ export const AttendanceHistoryScreen = ({ navigation }: any) => {
   };
 
   const renderItem = ({ item }: { item: AttendanceRecord }) => {
-    const isPresent = item.status === "PRESENT";
-    const isLate = item.status === "LATE";
+    const isPresent = item.status === "present";
+    const isLate = item.status === "late";
     const badgeColor = isPresent ? "#059669" : isLate ? "#D97706" : "#7C3AED";
     const badgeBg = isPresent ? "rgba(5,150,105,0.12)" : isLate ? "rgba(217,119,6,0.12)" : "rgba(124,58,237,0.12)";
 
@@ -95,7 +95,7 @@ export const AttendanceHistoryScreen = ({ navigation }: any) => {
             })}
           </Text>
           <View style={[styles.badge, { backgroundColor: badgeBg }]}>
-            <Text style={[styles.badgeText, { color: badgeColor }]}>{item.status}</Text>
+            <Text style={[styles.badgeText, { color: badgeColor }]}>{item.status.replace(/_/g, " ").toUpperCase()}</Text>
           </View>
         </View>
 
