@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,13 @@ import {
   ScrollView,
   Linking,
   RefreshControl,
-  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
+import { FadeInView } from "../../components/FadeInView";
+import { SkeletonBlock } from "../../components/SkeletonBlock";
 
 const API_HOST = (apiClient.defaults.baseURL ?? "").replace(/\/api\/v1\/?$/, "");
 
@@ -53,7 +54,6 @@ export const AttendanceHistoryScreen = () => {
   const [history, setHistory] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [selectedDetail, setSelectedDetail] = useState<AttendanceDetail | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -74,13 +74,6 @@ export const AttendanceHistoryScreen = () => {
   useEffect(() => {
     loadData();
   }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      fadeAnim.setValue(0);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    }
-  }, [isLoading]);
 
   const openDetail = (id: number) => {
     setIsModalVisible(true);
@@ -161,9 +154,13 @@ export const AttendanceHistoryScreen = () => {
         </View>
 
         {isLoading ? (
-          <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 40 }} />
+          <View style={styles.list}>
+            {[0, 1, 2, 3].map((i) => (
+              <SkeletonBlock key={i} height={92} borderRadius={radius.card} style={{ marginBottom: spacing.md }} />
+            ))}
+          </View>
         ) : (
-          <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+          <FadeInView style={{ flex: 1 }}>
             <FlatList
               data={history}
               keyExtractor={(item) => String(item.id)}
@@ -179,7 +176,7 @@ export const AttendanceHistoryScreen = () => {
                 </View>
               }
             />
-          </Animated.View>
+          </FadeInView>
         )}
       </View>
 

@@ -13,6 +13,8 @@ import { Feather } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
 import { showAlert } from "../../utils/alert";
+import { FadeInView } from "../../components/FadeInView";
+import { hapticLight, hapticSuccess, hapticError } from "../../utils/haptics";
 
 interface Balance {
   leave_type_id: number;
@@ -49,8 +51,10 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
   const selectedBalance = balances.find((b) => b.leave_type_id === selectedTypeId);
 
   const handleSubmit = async () => {
+    hapticLight();
     if (!selectedTypeId || !fromDate || !toDate || !totalDays) {
       setError("Please fill in all required fields");
+      hapticError();
       return;
     }
     setError("");
@@ -65,9 +69,11 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
         reason: reason.trim() || undefined,
       });
 
+      hapticSuccess();
       showAlert("Leave application submitted successfully!");
       navigation.goBack();
     } catch (e: any) {
+      hapticError();
       setError(e?.response?.data?.detail ?? "Failed to submit leave application");
     } finally {
       setIsSubmitting(false);
@@ -76,6 +82,7 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <FadeInView style={{ flex: 1 }} translateY={12}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
           <Feather name="edit-3" size={20} color={colors.textPrimary} />
@@ -184,6 +191,7 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      </FadeInView>
     </SafeAreaView>
   );
 };

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
@@ -13,6 +12,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useTheme, ThemePalette } from "../../theme/ThemeContext";
 import { RootState } from "../../redux/store";
 import apiClient from "../../api/client";
+import { FadeInView } from "../../components/FadeInView";
+import { SkeletonBlock } from "../../components/SkeletonBlock";
 
 interface AttendanceRecord {
   date: string;
@@ -106,9 +107,12 @@ export const DashboardScreen = ({ navigation }: any) => {
           </Text>
 
           {isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.md }} />
+            <View style={{ width: "100%", marginTop: spacing.md, alignItems: "center", gap: spacing.sm }}>
+              <SkeletonBlock height={26} width="55%" borderRadius={radius.badge} />
+              <SkeletonBlock height={48} width="100%" borderRadius={radius.button} />
+            </View>
           ) : (
-            <>
+            <FadeInView style={{ width: "100%", alignItems: "center" }} translateY={6}>
               <View
                 style={[
                   styles.statusBadge,
@@ -148,36 +152,39 @@ export const DashboardScreen = ({ navigation }: any) => {
                   <Text style={styles.checkInButtonText}>📷  Selfie & GPS Check-In</Text>
                 </TouchableOpacity>
               )}
-            </>
+            </FadeInView>
           )}
         </View>
 
         {/* Summary Grid */}
         <Text style={styles.sectionTitle}>Monthly Overview</Text>
         <View style={styles.grid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.present}</Text>
-            <Text style={styles.statLabel}>Present</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.late}</Text>
-            <Text style={styles.statLabel}>Late</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.leave}</Text>
-            <Text style={styles.statLabel}>Leave</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{isLoading ? "—" : monthlyStats.wfh}</Text>
-            <Text style={styles.statLabel}>WFH</Text>
-          </View>
+          {[
+            ["present", "Present"],
+            ["late", "Late"],
+            ["leave", "Leave"],
+            ["wfh", "WFH"],
+          ].map(([key, label]) => (
+            <View key={key} style={styles.statCard}>
+              {isLoading ? (
+                <SkeletonBlock height={24} width={32} borderRadius={6} style={{ marginBottom: 4 }} />
+              ) : (
+                <FadeInView duration={200}>
+                  <Text style={styles.statNumber}>{(monthlyStats as any)[key]}</Text>
+                </FadeInView>
+              )}
+              <Text style={styles.statLabel}>{label}</Text>
+            </View>
+          ))}
         </View>
 
         {/* Recent Activity */}
         <Text style={styles.sectionTitle}>Recent Logs</Text>
         {isLoading ? (
           <View style={styles.activityCard}>
-            <ActivityIndicator color={colors.primary} />
+            {[0, 1, 2].map((i) => (
+              <SkeletonBlock key={i} height={18} style={{ marginBottom: i < 2 ? spacing.md : 0 }} />
+            ))}
           </View>
         ) : recentLogs.length === 0 ? (
           <View style={styles.activityCard}>
@@ -186,24 +193,26 @@ export const DashboardScreen = ({ navigation }: any) => {
             </Text>
           </View>
         ) : (
-          <View style={styles.activityCard}>
-            {recentLogs.map((log, i) => (
-              <View
-                key={log.date}
-                style={[styles.logRow, i < recentLogs.length - 1 && styles.logRowDivider]}
-              >
-                <Text style={styles.logDate}>{formatLogDate(log.date)}</Text>
-                <Text style={styles.logDetail}>
-                  {log.check_in_time ? log.check_in_time.slice(0, 5) : "—"}
-                  {"  →  "}
-                  {log.check_out_time ? log.check_out_time.slice(0, 5) : "—"}
-                </Text>
-                <Text style={[styles.logStatus, { color: statusColor(log.status) }]}>
-                  {formatStatus(log.status)}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <FadeInView>
+            <View style={styles.activityCard}>
+              {recentLogs.map((log, i) => (
+                <View
+                  key={log.date}
+                  style={[styles.logRow, i < recentLogs.length - 1 && styles.logRowDivider]}
+                >
+                  <Text style={styles.logDate}>{formatLogDate(log.date)}</Text>
+                  <Text style={styles.logDetail}>
+                    {log.check_in_time ? log.check_in_time.slice(0, 5) : "—"}
+                    {"  →  "}
+                    {log.check_out_time ? log.check_out_time.slice(0, 5) : "—"}
+                  </Text>
+                  <Text style={[styles.logStatus, { color: statusColor(log.status) }]}>
+                    {formatStatus(log.status)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </FadeInView>
         )}
       </ScrollView>
     </SafeAreaView>

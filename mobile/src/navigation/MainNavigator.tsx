@@ -1,4 +1,5 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
+import { Animated } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { useDispatch, useSelector } from "react-redux";
@@ -30,6 +31,27 @@ const TAB_ICONS: Record<string, keyof typeof Feather.glyphMap> = {
   Profile: "user",
 };
 
+// Scales the icon up slightly whenever its tab becomes focused, so switching
+// tabs reads as a small deliberate motion instead of an instant icon swap.
+const AnimatedTabIcon: React.FC<{
+  name: keyof typeof Feather.glyphMap;
+  color: string;
+  size: number;
+  focused: boolean;
+}> = ({ name, color, size, focused }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.spring(scale, { toValue: focused ? 1.15 : 1, friction: 5, useNativeDriver: true }).start();
+  }, [focused, scale]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Feather name={name} size={size} color={color} />
+    </Animated.View>
+  );
+};
+
 export const MainNavigator = () => {
   const dispatch = useDispatch<AppDispatch>();
   const unreadCount = useSelector((state: RootState) => state.notifications.unread_count);
@@ -58,9 +80,9 @@ export const MainNavigator = () => {
           height: 60,
           paddingBottom: 8,
         },
-        tabBarIcon: ({ color, size }) =>
+        tabBarIcon: ({ color, size, focused }) =>
           TAB_ICONS[route.name] ? (
-            <Feather name={TAB_ICONS[route.name]} size={size ?? 20} color={color} />
+            <AnimatedTabIcon name={TAB_ICONS[route.name]} size={size ?? 20} color={color} focused={focused} />
           ) : null,
       })}
     >

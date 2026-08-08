@@ -6,7 +6,10 @@ import {
   Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 import { useTheme, ThemePalette } from "../../theme/ThemeContext";
+import { FadeInView } from "../../components/FadeInView";
+import { hapticSelection } from "../../utils/haptics";
 
 export const SettingsScreen = () => {
   const [pushEnabled, setPushEnabled] = React.useState(true);
@@ -16,18 +19,21 @@ export const SettingsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <FadeInView style={styles.content} translateY={12}>
         <Text style={styles.header}>App Settings</Text>
 
         <View style={styles.card}>
           <View style={styles.row}>
-            <View>
-              <Text style={styles.rowTitle}>Dark Mode</Text>
-              <Text style={styles.rowSubtitle}>Switch between light and dark appearance</Text>
+            <View style={styles.rowLabelGroup}>
+              <Feather name={isDark ? "moon" : "sun"} size={16} color={colors.primary} />
+              <View>
+                <Text style={styles.rowTitle}>Dark Mode</Text>
+                <Text style={styles.rowSubtitle}>Switch between light and dark appearance</Text>
+              </View>
             </View>
             <Switch
               value={isDark}
-              onValueChange={toggleTheme}
+              onValueChange={() => { hapticSelection(); toggleTheme(); }}
               trackColor={{ false: colors.border, true: colors.primary }}
             />
           </View>
@@ -39,7 +45,7 @@ export const SettingsScreen = () => {
             </View>
             <Switch
               value={pushEnabled}
-              onValueChange={setPushEnabled}
+              onValueChange={(v) => { hapticSelection(); setPushEnabled(v); }}
               trackColor={{ false: colors.border, true: colors.primary }}
             />
           </View>
@@ -51,14 +57,14 @@ export const SettingsScreen = () => {
             </View>
             <Switch
               value={locationEnabled}
-              onValueChange={setLocationEnabled}
+              onValueChange={(v) => { hapticSelection(); setLocationEnabled(v); }}
               trackColor={{ false: colors.border, true: colors.primary }}
             />
           </View>
         </View>
 
         <Text style={styles.footer}>AttendHR Mobile v1.0.0</Text>
-      </View>
+      </FadeInView>
     </SafeAreaView>
   );
 };
@@ -95,6 +101,11 @@ const createStyles = (colors: ThemePalette, spacing: any, radius: any) =>
     },
     rowLast: {
       borderBottomWidth: 0,
+    },
+    rowLabelGroup: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
     },
     rowTitle: {
       fontSize: 15,

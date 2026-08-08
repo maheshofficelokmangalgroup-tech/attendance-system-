@@ -1,19 +1,20 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
-  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
 import { showAlert } from "../../utils/alert";
+import { FadeInView } from "../../components/FadeInView";
+import { BounceInView } from "../../components/BounceInView";
+import { SkeletonBlock } from "../../components/SkeletonBlock";
 
 interface LeaveRecord {
   id: number;
@@ -38,7 +39,6 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cancellingId, setCancellingId] = useState<number | null>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = () => {
     apiClient.get("/leaves/my-history?page_size=30")
@@ -55,13 +55,6 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
   useEffect(() => {
     loadData();
   }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      fadeAnim.setValue(0);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    }
-  }, [isLoading]);
 
   const handleCancel = async (id: number) => {
     if (cancellingId !== null) return; // ignore rapid repeat taps while a request is in flight
@@ -91,6 +84,14 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
     const statusStyle = getStatusColor(item.status);
     const statusIcon = STATUS_ICON[item.status.toUpperCase()] ?? "clock";
     const canCancel = item.status !== "CANCELLED" && item.status !== "REJECTED";
+    const isApproved = item.status.toUpperCase() === "APPROVED" || item.status.toUpperCase() === "FIRST_APPROVED";
+
+    const statusBadge = (
+      <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+        <Feather name={statusIcon} size={12} color={statusStyle.text} />
+        <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.status.replace(/_/g, " ")}</Text>
+      </View>
+    );
 
     return (
       <View style={styles.card}>
@@ -99,10 +100,7 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
             <Feather name="calendar" size={12} color={colors.primary} />
             <Text style={styles.typeBadgeText}>{item.leave_type?.code ?? "PL"}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-            <Feather name={statusIcon} size={12} color={statusStyle.text} />
-            <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.status.replace(/_/g, " ")}</Text>
-          </View>
+          {isApproved ? <BounceInView>{statusBadge}</BounceInView> : statusBadge}
         </View>
 
         <Text style={styles.dateRange}>
@@ -153,9 +151,13 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
         </View>
 
         {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          <View>
+            {[0, 1, 2].map((i) => (
+              <SkeletonBlock key={i} height={98} borderRadius={radius.card} style={{ marginBottom: spacing.md }} />
+            ))}
+          </View>
         ) : (
-          <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+          <FadeInView style={{ flex: 1 }}>
             <FlatList
               data={leaves}
               keyExtractor={(item) => String(item.id)}
@@ -171,7 +173,7 @@ export const LeaveHistoryScreen = ({ navigation }: any) => {
                 </View>
               }
             />
-          </Animated.View>
+          </FadeInView>
         )}
       </View>
     </SafeAreaView>

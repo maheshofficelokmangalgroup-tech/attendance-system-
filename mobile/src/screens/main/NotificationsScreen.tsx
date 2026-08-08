@@ -1,13 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
-  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -16,6 +14,9 @@ import { colors, radius, spacing } from "../../theme/tokens";
 import apiClient from "../../api/client";
 import { setNotifications, markAsRead, NotificationItem } from "../../redux/slices/notificationSlice";
 import { RootState, AppDispatch } from "../../redux/store";
+import { FadeInView } from "../../components/FadeInView";
+import { SkeletonBlock } from "../../components/SkeletonBlock";
+import { hapticSelection } from "../../utils/haptics";
 
 const ICONS_BY_TYPE: Record<string, keyof typeof Feather.glyphMap> = {
   leave_approved: "check-circle",
@@ -30,7 +31,6 @@ export const NotificationsScreen = () => {
   const items = useSelector((state: RootState) => state.notifications.items);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = async () => {
     try {
@@ -49,15 +49,9 @@ export const NotificationsScreen = () => {
     loadData();
   }, []);
 
-  useEffect(() => {
-    if (!isLoading) {
-      fadeAnim.setValue(0);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
-    }
-  }, [isLoading]);
-
   const handleMarkRead = async (id: number) => {
     try {
+      hapticSelection();
       await apiClient.post(`/notifications/${id}/read`);
       dispatch(markAsRead(id));
     } catch (err) {
@@ -99,9 +93,13 @@ export const NotificationsScreen = () => {
         </View>
 
         {isLoading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+          <View>
+            {[0, 1, 2, 3].map((i) => (
+              <SkeletonBlock key={i} height={64} borderRadius={radius.card} style={{ marginBottom: spacing.sm }} />
+            ))}
+          </View>
         ) : (
-          <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+          <FadeInView style={{ flex: 1 }}>
             <FlatList
               data={items}
               keyExtractor={(item) => String(item.id)}
@@ -119,7 +117,7 @@ export const NotificationsScreen = () => {
                 </View>
               }
             />
-          </Animated.View>
+          </FadeInView>
         )}
       </View>
     </SafeAreaView>
