@@ -35,6 +35,16 @@ class EmployeeCreate(BaseModel):
     # log in with a username instead of their email address.
     username: Optional[str] = Field(None, max_length=150)
 
+    @field_validator("username", "password", mode="before")
+    @classmethod
+    def blank_to_none(cls, v: Optional[str]) -> Optional[str]:
+        # A client (e.g. an untouched form field) may send "" instead of
+        # omitting the field. For username that's fatal — "" is not NULL, so
+        # a second employee created without a username hits the column's
+        # UNIQUE constraint and 500s. Treat blank as "not provided" for both,
+        # matching the documented "blank = use default" behavior.
+        return v or None
+
 
 class EmployeeUpdate(BaseModel):
     department_id: Optional[int] = None

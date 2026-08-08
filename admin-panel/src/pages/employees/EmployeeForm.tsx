@@ -94,6 +94,12 @@ interface AssetItem {
 
 const unwrap = <T,>(data: unknown): T => (data as { data?: T })?.data ?? (data as T);
 
+// A <select> with no option chosen reports "", and the default number
+// coercion turns that into 0 (Number("") === 0) instead of leaving it
+// empty — which then fails FK validation server-side as e.g. "Designation
+// ID 0 not found" for a field that's supposed to be optional.
+const emptyToUndefined = (v: string) => (v === "" ? undefined : Number(v));
+
 const generatePassword = () => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
   let out = "";
@@ -300,7 +306,16 @@ const EmployeeForm: React.FC = () => {
         await uploadPhotoIfNeeded(Number(id));
         navigate("/employees");
       } else {
-        const { data } = await apiClient.post("/employees", corePayload);
+        // Untouched inputs report "" rather than undefined — omit both so a
+        // blank password falls back to the employee code (documented
+        // behavior) and a blank username doesn't collide with every other
+        // employee's blank username on the DB's unique constraint.
+        const createPayload = {
+          ...corePayload,
+          password: corePayload.password || undefined,
+          username: corePayload.username || undefined,
+        };
+        const { data } = await apiClient.post("/employees", createPayload);
         const created = unwrap<{ id: number }>(data);
         await saveKycIfNeeded(created.id, values);
         await uploadPhotoIfNeeded(created.id);
@@ -645,13 +660,13 @@ const EmployeeForm: React.FC = () => {
 
           <div style={grid2}>
             <FormField label="Department" error={errors.department_id?.message}>
-              <select className="input" {...register("department_id")}>
+              <select className="input" {...register("department_id", { setValueAs: emptyToUndefined })}>
                 <option value="">Select Department</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </FormField>
             <FormField label="Designation" error={errors.designation_id?.message}>
-              <select className="input" {...register("designation_id")} disabled={!deptId}>
+              <select className="input" {...register("designation_id", { setValueAs: emptyToUndefined })} disabled={!deptId}>
                 <option value="">Select Designation</option>
                 {designations.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
@@ -660,7 +675,7 @@ const EmployeeForm: React.FC = () => {
 
           <div style={grid2}>
             <FormField label="Shift" error={errors.shift_id?.message}>
-              <select className="input" {...register("shift_id")}>
+              <select className="input" {...register("shift_id", { setValueAs: emptyToUndefined })}>
                 <option value="">Select Shift</option>
                 {shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
