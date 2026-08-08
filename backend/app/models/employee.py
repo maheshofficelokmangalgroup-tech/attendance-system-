@@ -66,6 +66,11 @@ class Employee(Base):
     date_of_joining: Mapped[date] = mapped_column(Date, nullable=False)
     gender: Mapped[Optional[GenderEnum]] = mapped_column(Enum(GenderEnum))
     address: Mapped[Optional[str]] = mapped_column(Text)
+    permanent_address: Mapped[Optional[str]] = mapped_column(Text)
+    present_address: Mapped[Optional[str]] = mapped_column(Text)
+    emergency_contact_name: Mapped[Optional[str]] = mapped_column(String(200))
+    emergency_contact_phone: Mapped[Optional[str]] = mapped_column(String(20))
+    emergency_contact_relation: Mapped[Optional[str]] = mapped_column(String(100))
     photo_path: Mapped[Optional[str]] = mapped_column(String(500))
     employment_type: Mapped[EmploymentTypeEnum] = mapped_column(
         Enum(EmploymentTypeEnum), default=EmploymentTypeEnum.FULL_TIME, nullable=False
@@ -109,7 +114,72 @@ class Employee(Base):
     notifications: Mapped[List["Notification"]] = relationship(
         "Notification", back_populates="employee"
     )
+    kyc: Mapped[Optional["EmployeeKyc"]] = relationship(
+        "EmployeeKyc", back_populates="employee", uselist=False, cascade="all, delete-orphan"
+    )
+    assets: Mapped[List["EmployeeAsset"]] = relationship(
+        "EmployeeAsset", back_populates="employee", cascade="all, delete-orphan"
+    )
 
     @property
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
+
+
+class AssetStatusEnum(str, enum.Enum):
+    ASSIGNED = "assigned"
+    RETURNED = "returned"
+    DAMAGED = "damaged"
+    LOST = "lost"
+
+
+class EmployeeKyc(Base):
+    """KYC & bank details — split from Employee so sensitive PII (Aadhar,
+    PAN, bank account) is gated by its own RBAC permission (admin/HR only),
+    not the general employee 'view' permission every role has."""
+    __tablename__ = "employee_kyc"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    employee_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False, unique=True, index=True,
+    )
+    aadhar_number: Mapped[Optional[str]] = mapped_column(String(20))
+    pan_number: Mapped[Optional[str]] = mapped_column(String(20))
+    bank_account_number: Mapped[Optional[str]] = mapped_column(String(30))
+    bank_ifsc_code: Mapped[Optional[str]] = mapped_column(String(15))
+    bank_name: Mapped[Optional[str]] = mapped_column(String(150))
+    education_qualification: Mapped[Optional[str]] = mapped_column(String(150))
+    education_institution: Mapped[Optional[str]] = mapped_column(String(200))
+    education_year: Mapped[Optional[int]] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    employee: Mapped["Employee"] = relationship("Employee", back_populates="kyc")
+
+
+class EmployeeAsset(Base):
+    """A company asset (laptop, phone, ID card, ...) assigned to an employee."""
+    __tablename__ = "employee_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    employee_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    asset_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    asset_type: Mapped[Optional[str]] = mapped_column(String(100))
+    serial_number: Mapped[Optional[str]] = mapped_column(String(100))
+    assigned_date: Mapped[date] = mapped_column(Date, nullable=False)
+    return_date: Mapped[Optional[date]] = mapped_column(Date)
+    condition_notes: Mapped[Optional[str]] = mapped_column(Text)
+    status: Mapped[AssetStatusEnum] = mapped_column(
+        Enum(AssetStatusEnum), default=AssetStatusEnum.ASSIGNED, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    employee: Mapped["Employee"] = relationship("Employee", back_populates="assets")

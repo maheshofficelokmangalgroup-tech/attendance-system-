@@ -52,6 +52,16 @@ PERMISSION_MATRIX: Dict[Tuple[str, str], FrozenSet[str]] = {
     ("delete", "employee"):         frozenset([ROLE_ADMIN]),
     ("view",   "employee"):         frozenset([ROLE_ADMIN, ROLE_HR, ROLE_MANAGER, ROLE_EMPLOYEE]),
 
+    # Employee KYC & bank details — sensitive PII, Admin/HR only (not Manager)
+    ("view",   "employee_kyc"):     frozenset([ROLE_ADMIN, ROLE_HR]),
+    ("update", "employee_kyc"):     frozenset([ROLE_ADMIN, ROLE_HR]),
+
+    # Employee asset assignment
+    ("view",   "employee_asset"):   frozenset([ROLE_ADMIN, ROLE_HR, ROLE_MANAGER]),
+    ("create", "employee_asset"):   frozenset([ROLE_ADMIN, ROLE_HR]),
+    ("update", "employee_asset"):   frozenset([ROLE_ADMIN, ROLE_HR]),
+    ("delete", "employee_asset"):   frozenset([ROLE_ADMIN, ROLE_HR]),
+
     # Attendance — view (manager: own team only, enforced in service)
     ("view",   "attendance"):       frozenset([ROLE_ADMIN, ROLE_HR, ROLE_MANAGER, ROLE_EMPLOYEE]),
     ("manage", "attendance"):       frozenset([ROLE_ADMIN, ROLE_HR]),
