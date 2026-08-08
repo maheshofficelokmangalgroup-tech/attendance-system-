@@ -5,17 +5,23 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 import math
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
-from app.models.employee import Employee
+from app.models.employee import Employee, EmployeeKyc, EmployeeAsset
 from app.models.user import User
 from app.models.company import Department, Designation, Shift
 from app.repository.employee_repo import EmployeeRepository
 from app.repository.user_repo import UserRepository, RefreshTokenRepository
 from app.repository.audit_repo import AuditRepository
-from app.schemas.employee import EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListItem
+from app.services.storage_service import get_storage_service
+from app.utils.image import validate_image_upload, generate_unique_filename
+from app.schemas.employee import (
+    EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListItem,
+    EmployeeKycUpsert, EmployeeKycResponse,
+    EmployeeAssetCreate, EmployeeAssetUpdate, EmployeeAssetResponse,
+)
 from app.schemas.common import PaginatedResponse
 
 
@@ -86,7 +92,11 @@ class EmployeeService:
             date_of_birth=payload.date_of_birth,
             date_of_joining=payload.date_of_joining,
             gender=payload.gender,
-            address=payload.address,
+            permanent_address=payload.permanent_address,
+            present_address=payload.present_address,
+            emergency_contact_name=payload.emergency_contact_name,
+            emergency_contact_phone=payload.emergency_contact_phone,
+            emergency_contact_relation=payload.emergency_contact_relation,
             employment_type=payload.employment_type,
         )
         self.repo.create(employee)
@@ -232,3 +242,119 @@ class EmployeeService:
             page_size=page_size,
             total_pages=math.ceil(total / page_size) if total else 0,
         )
+
+    def upload_photo(self, employee_id: int, photo: UploadFile) -> EmployeeResponse:
+        employee = self.repo.get(employee_id)
+        if not employee:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+        ext = validate_image_upload(photo)
+        filename = generate_unique_filename(employee_id, "photo", ext)
+        storage = get_storage_service()
+        employee.photo_path = storage.save_file(photo.file, f"employees/{filename}")
+
+        self.db.commit()
+        self.db.refresh(employee)
+        return self.get(employee_id)
+
+    def get_kyc(self, employee_id: int) -> Optional[EmployeeKycResponse]:
+        if not self.repo.get(employee_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+        kyc = self.db.query(EmployeeKyc).filter_by(employee_id=employee_id).first()
+        return EmployeeKycResponse.model_validate(kyc) if kyc else None
+
+    def upsert_kyc(
+        self, employee_id: int, payload: EmployeeKycUpsert, actor_id: int, ip: Optional[str] = None,
+    ) -> EmployeeKycResponse:
+        if not self.repo.get(employee_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+        kyc = self.db.query(EmployeeKyc).filter_by(employee_id=employee_id).first()
+        data = payload.model_dump(exclude_unset=True)
+        if not kyc:
+            kyc = EmployeeKyc(employee_id=employee_id, **data)
+            self.db.add(kyc)
+        else:
+            for field, value in data.items():
+                setattr(kyc, field, value)
+
+        self.audit_repo.log(
+            user_id=actor_id,
+            action="employee_kyc_updated",
+            entity_type="Employee",
+            entity_id=employee_id,
+            ip_address=ip,
+        )
+        self.db.commit()
+        self.db.refresh(kyc)
+        return EmployeeKycResponse.model_validate(kyc)
+
+    def list_assets(self, employee_id: int) -> List[EmployeeAssetResponse]:
+        if not self.repo.get(employee_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+        assets = (
+            self.db.query(EmployeeAsset)
+            .filter_by(employee_id=employee_id)
+            .order_by(EmployeeAsset.assigned_date.desc())
+            .all()
+        )
+        return [EmployeeAssetResponse.model_validate(a) for a in assets]
+
+    def add_asset(
+        self, employee_id: int, payload: EmployeeAssetCreate, actor_id: int, ip: Optional[str] = None,
+    ) -> EmployeeAssetResponse:
+        if not self.repo.get(employee_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+        asset = EmployeeAsset(employee_id=employee_id, **payload.model_dump())
+        self.db.add(asset)
+        self.db.flush()
+        self.audit_repo.log(
+            user_id=actor_id,
+            action="employee_asset_assigned",
+            entity_type="EmployeeAsset",
+            entity_id=asset.id,
+            after_data={"asset_name": asset.asset_name, "employee_id": employee_id},
+            ip_address=ip,
+        )
+        self.db.commit()
+        self.db.refresh(asset)
+        return EmployeeAssetResponse.model_validate(asset)
+
+    def update_asset(
+        self, employee_id: int, asset_id: int, payload: EmployeeAssetUpdate,
+        actor_id: int, ip: Optional[str] = None,
+    ) -> EmployeeAssetResponse:
+        asset = self.db.query(EmployeeAsset).filter_by(id=asset_id, employee_id=employee_id).first()
+        if not asset:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+        for field, value in payload.model_dump(exclude_unset=True).items():
+            setattr(asset, field, value)
+
+        self.audit_repo.log(
+            user_id=actor_id,
+            action="employee_asset_updated",
+            entity_type="EmployeeAsset",
+            entity_id=asset.id,
+            ip_address=ip,
+        )
+        self.db.commit()
+        self.db.refresh(asset)
+        return EmployeeAssetResponse.model_validate(asset)
+
+    def delete_asset(self, employee_id: int, asset_id: int, actor_id: int, ip: Optional[str] = None) -> None:
+        asset = self.db.query(EmployeeAsset).filter_by(id=asset_id, employee_id=employee_id).first()
+        if not asset:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+        self.audit_repo.log(
+            user_id=actor_id,
+            action="employee_asset_removed",
+            entity_type="EmployeeAsset",
+            entity_id=asset.id,
+            before_data={"asset_name": asset.asset_name},
+            ip_address=ip,
+        )
+        self.db.delete(asset)
+        self.db.commit()

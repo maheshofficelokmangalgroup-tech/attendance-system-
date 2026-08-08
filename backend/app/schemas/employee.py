@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from app.models.employee import GenderEnum, EmploymentTypeEnum
+from app.models.employee import GenderEnum, EmploymentTypeEnum, AssetStatusEnum
 
 
 class EmployeeCreate(BaseModel):
@@ -21,7 +21,11 @@ class EmployeeCreate(BaseModel):
     date_of_birth: Optional[date] = None
     date_of_joining: date
     gender: Optional[GenderEnum] = None
-    address: Optional[str] = None
+    permanent_address: Optional[str] = None
+    present_address: Optional[str] = None
+    emergency_contact_name: Optional[str] = Field(None, max_length=200)
+    emergency_contact_phone: Optional[str] = Field(None, max_length=20)
+    emergency_contact_relation: Optional[str] = Field(None, max_length=100)
     employment_type: EmploymentTypeEnum = EmploymentTypeEnum.FULL_TIME
     # Role for user account creation
     role_id: int
@@ -30,6 +34,16 @@ class EmployeeCreate(BaseModel):
     # Optional alternate login identifier (e.g. "Rohan@YRK") for employees who
     # log in with a username instead of their email address.
     username: Optional[str] = Field(None, max_length=150)
+
+    @field_validator("username", "password", mode="before")
+    @classmethod
+    def blank_to_none(cls, v: Optional[str]) -> Optional[str]:
+        # A client (e.g. an untouched form field) may send "" instead of
+        # omitting the field. For username that's fatal — "" is not NULL, so
+        # a second employee created without a username hits the column's
+        # UNIQUE constraint and 500s. Treat blank as "not provided" for both,
+        # matching the documented "blank = use default" behavior.
+        return v or None
 
 
 class EmployeeUpdate(BaseModel):
@@ -42,7 +56,11 @@ class EmployeeUpdate(BaseModel):
     phone: Optional[str] = Field(None, max_length=20)
     date_of_birth: Optional[date] = None
     gender: Optional[GenderEnum] = None
-    address: Optional[str] = None
+    permanent_address: Optional[str] = None
+    present_address: Optional[str] = None
+    emergency_contact_name: Optional[str] = Field(None, max_length=200)
+    emergency_contact_phone: Optional[str] = Field(None, max_length=20)
+    emergency_contact_relation: Optional[str] = Field(None, max_length=100)
     employment_type: Optional[EmploymentTypeEnum] = None
     role_id: Optional[int] = None
     is_active: Optional[bool] = None
@@ -85,7 +103,11 @@ class EmployeeResponse(BaseModel):
     date_of_birth: Optional[date]
     date_of_joining: date
     gender: Optional[GenderEnum]
-    address: Optional[str]
+    permanent_address: Optional[str]
+    present_address: Optional[str]
+    emergency_contact_name: Optional[str]
+    emergency_contact_phone: Optional[str]
+    emergency_contact_relation: Optional[str]
     photo_path: Optional[str]
     employment_type: EmploymentTypeEnum
     is_active: bool
@@ -117,5 +139,54 @@ class EmployeeListItem(BaseModel):
     designation: Optional[DesignationSummary]
     employment_type: EmploymentTypeEnum
     is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeKycUpsert(BaseModel):
+    aadhar_number: Optional[str] = Field(None, max_length=20)
+    pan_number: Optional[str] = Field(None, max_length=20)
+    bank_account_number: Optional[str] = Field(None, max_length=30)
+    bank_ifsc_code: Optional[str] = Field(None, max_length=15)
+    bank_name: Optional[str] = Field(None, max_length=150)
+    education_qualification: Optional[str] = Field(None, max_length=150)
+    education_institution: Optional[str] = Field(None, max_length=200)
+    education_year: Optional[int] = None
+
+
+class EmployeeKycResponse(EmployeeKycUpsert):
+    id: int
+    employee_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class EmployeeAssetCreate(BaseModel):
+    asset_name: str = Field(..., min_length=1, max_length=150)
+    asset_type: Optional[str] = Field(None, max_length=100)
+    serial_number: Optional[str] = Field(None, max_length=100)
+    assigned_date: date
+    condition_notes: Optional[str] = None
+
+
+class EmployeeAssetUpdate(BaseModel):
+    asset_name: Optional[str] = Field(None, min_length=1, max_length=150)
+    asset_type: Optional[str] = Field(None, max_length=100)
+    serial_number: Optional[str] = Field(None, max_length=100)
+    return_date: Optional[date] = None
+    condition_notes: Optional[str] = None
+    status: Optional[AssetStatusEnum] = None
+
+
+class EmployeeAssetResponse(BaseModel):
+    id: int
+    employee_id: int
+    asset_name: str
+    asset_type: Optional[str]
+    serial_number: Optional[str]
+    assigned_date: date
+    return_date: Optional[date]
+    condition_notes: Optional[str]
+    status: AssetStatusEnum
 
     model_config = {"from_attributes": True}
