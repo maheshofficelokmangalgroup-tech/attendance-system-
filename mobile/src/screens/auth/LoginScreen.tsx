@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,9 @@ import { useDispatch } from "react-redux";
 import { colors, radius, spacing } from "../../theme/tokens";
 import { setAuth } from "../../redux/slices/authSlice";
 import apiClient from "../../api/client";
+import { FadeInView } from "../../components/FadeInView";
+import { ShakeView, ShakeViewHandle } from "../../components/ShakeView";
+import { hapticLight, hapticError } from "../../utils/haptics";
 
 export const LoginScreen = ({ navigation }: any) => {
   const dispatch = useDispatch();
@@ -21,10 +24,14 @@ export const LoginScreen = ({ navigation }: any) => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const formShakeRef = useRef<ShakeViewHandle>(null);
 
   const handleLogin = async () => {
+    hapticLight();
     if (!email || !password) {
       setError("Please fill in all fields");
+      hapticError();
+      formShakeRef.current?.shake();
       return;
     }
     setError("");
@@ -41,6 +48,8 @@ export const LoginScreen = ({ navigation }: any) => {
     } catch (err: any) {
       const msg = err?.response?.data?.detail ?? "Invalid credentials";
       setError(msg);
+      hapticError();
+      formShakeRef.current?.shake();
     } finally {
       setIsLoading(false);
     }
@@ -52,6 +61,7 @@ export const LoginScreen = ({ navigation }: any) => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.content}
       >
+       <FadeInView translateY={16}>
         <View style={styles.header}>
           <View style={styles.logoBadge}>
             <Text style={styles.logoText}>A</Text>
@@ -66,7 +76,7 @@ export const LoginScreen = ({ navigation }: any) => {
           </View>
         ) : null}
 
-        <View style={styles.form}>
+        <ShakeView ref={formShakeRef} style={styles.form}>
           <Text style={styles.label}>Username or Email</Text>
           <TextInput
             style={styles.input}
@@ -106,7 +116,8 @@ export const LoginScreen = ({ navigation }: any) => {
               <Text style={styles.buttonText}>Sign In</Text>
             )}
           </TouchableOpacity>
-        </View>
+        </ShakeView>
+       </FadeInView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

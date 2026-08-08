@@ -11,6 +11,8 @@ import { colors, radius, spacing } from "../../theme/tokens";
 import { RootState } from "../../redux/store";
 import { clearAuth } from "../../redux/slices/authSlice";
 import apiClient from "../../api/client";
+import { FadeInView } from "../../components/FadeInView";
+import { hapticLight } from "../../utils/haptics";
 
 export const ProfileScreen = () => {
   const dispatch = useDispatch();
@@ -18,6 +20,7 @@ export const ProfileScreen = () => {
   const refreshToken = useSelector((state: RootState) => state.auth.refresh_token);
 
   const handleLogout = () => {
+    hapticLight();
     // Best-effort: revoke the refresh token server-side so it can't be
     // replayed. Log out locally either way — a failed revoke shouldn't
     // trap the user in a signed-in state.
@@ -29,7 +32,7 @@ export const ProfileScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <FadeInView style={styles.content} translateY={12}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
             {user?.full_name?.[0]?.toUpperCase() ?? "U"}
@@ -62,7 +65,7 @@ export const ProfileScreen = () => {
         >
           <Text style={styles.logoutButtonText}>Sign Out</Text>
         </TouchableOpacity>
-      </View>
+      </FadeInView>
     </SafeAreaView>
   );
 };

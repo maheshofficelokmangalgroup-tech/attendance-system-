@@ -17,6 +17,10 @@ import * as Location from "expo-location";
 import { colors, radius, spacing, shadows } from "../../theme/tokens";
 import apiClient from "../../api/client";
 import { showAlert } from "../../utils/alert";
+import { FadeInView } from "../../components/FadeInView";
+import { BounceInView } from "../../components/BounceInView";
+import { PulsingDot } from "../../components/PulsingDot";
+import { hapticLight, hapticSuccess, hapticError } from "../../utils/haptics";
 
 type Step = "primer" | "capture" | "review" | "success";
 
@@ -116,6 +120,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
 
   const handleCapture = async () => {
     if (!cameraRef.current || isCapturing) return;
+    hapticLight();
     setIsCapturing(true);
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
@@ -123,6 +128,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
       setPhotoPath(photo.uri);
       setStep("review");
     } catch (e) {
+      hapticError();
       showAlert("Failed to capture photo. Please try again.");
     } finally {
       setIsCapturing(false);
@@ -172,11 +178,13 @@ export const CheckOutScreen = ({ navigation }: any) => {
       });
 
       setCheckOutResult(response.data);
+      hapticSuccess();
       setStep("success");
       setTimeout(() => {
         navigation.goBack();
       }, 2000);
     } catch (e: any) {
+      hapticError();
       showAlert(e?.response?.data?.detail ?? "Check-out failed");
     } finally {
       setIsSubmitting(false);
@@ -189,7 +197,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
       {/* STEP 1: Permission Primer */}
       {/* ---------------------------------------------------------------- */}
       {step === "primer" && (
-        <View style={styles.primerContainer}>
+        <FadeInView style={styles.primerContainer} translateY={12}>
           <View style={styles.iconCircle}>
             <Text style={styles.iconCircleText}>📍📷</Text>
           </View>
@@ -216,14 +224,21 @@ export const CheckOutScreen = ({ navigation }: any) => {
               <Text style={styles.primaryButtonText}>Enable & Continue</Text>
             )}
           </TouchableOpacity>
-        </View>
+
+          {isPreparing && (
+            <View style={styles.preparingRow}>
+              <PulsingDot color={colors.primary} size={6} />
+              <Text style={styles.preparingText}>Fetching camera & GPS…</Text>
+            </View>
+          )}
+        </FadeInView>
       )}
 
       {/* ---------------------------------------------------------------- */}
       {/* STEP 2: Camera Capture */}
       {/* ---------------------------------------------------------------- */}
       {step === "capture" && (
-        <View style={styles.captureContainer}>
+        <FadeInView style={styles.captureContainer}>
           <View style={styles.viewfinder}>
             {cameraPermission?.granted ? (
               <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
@@ -242,7 +257,10 @@ export const CheckOutScreen = ({ navigation }: any) => {
 
             <View style={styles.locationOverlay}>
               <Text style={styles.clockText}>{currentTime}</Text>
-              <Text style={styles.addressText}>📍 {address}</Text>
+              <View style={styles.addressRow}>
+                {address === "Locating…" && <PulsingDot color={colors.accent} size={5} />}
+                <Text style={styles.addressText}>📍 {address}</Text>
+              </View>
             </View>
           </View>
 
@@ -255,13 +273,14 @@ export const CheckOutScreen = ({ navigation }: any) => {
               <View style={styles.captureBtnInner} />
             </TouchableOpacity>
           </View>
-        </View>
+        </FadeInView>
       )}
 
       {/* ---------------------------------------------------------------- */}
       {/* STEP 3: Review Screen (photo + location + task summary) */}
       {/* ---------------------------------------------------------------- */}
       {step === "review" && (
+        <FadeInView style={{ flex: 1 }} translateY={12}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -326,6 +345,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
+        </FadeInView>
       )}
 
       {/* ---------------------------------------------------------------- */}
@@ -333,14 +353,16 @@ export const CheckOutScreen = ({ navigation }: any) => {
       {/* ---------------------------------------------------------------- */}
       {step === "success" && (
         <View style={styles.successContainer}>
-          <View style={styles.successCheckCircle}>
+          <BounceInView style={styles.successCheckCircle}>
             <Text style={styles.successCheckMark}>✓</Text>
-          </View>
-          <Text style={styles.successTitle}>Checked Out Successfully!</Text>
-          <Text style={styles.successTime}>
-            {currentTime} · {checkOutResult?.working_hours ? `${checkOutResult.working_hours}h worked` : "Have a great day!"}
-          </Text>
-          <Text style={styles.successSubtext}>Returning to dashboard…</Text>
+          </BounceInView>
+          <FadeInView translateY={10} duration={300}>
+            <Text style={styles.successTitle}>Checked Out Successfully!</Text>
+            <Text style={styles.successTime}>
+              {currentTime} · {checkOutResult?.working_hours ? `${checkOutResult.working_hours}h worked` : "Have a great day!"}
+            </Text>
+            <Text style={styles.successSubtext}>Returning to dashboard…</Text>
+          </FadeInView>
         </View>
       )}
     </SafeAreaView>
@@ -417,6 +439,16 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 16,
     fontWeight: "600",
+  },
+  preparingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  preparingText: {
+    color: colors.textSecondary,
+    fontSize: 12,
   },
   secondaryButton: {
     backgroundColor: "transparent",
@@ -495,10 +527,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
   },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 2,
+  },
   addressText: {
     color: colors.textSecondary,
     fontSize: 12,
-    marginTop: 2,
   },
   controlsBar: {
     height: 100,
