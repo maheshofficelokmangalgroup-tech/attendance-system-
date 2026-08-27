@@ -102,8 +102,20 @@ const downloadBlob = async (url: string, params: Record<string, unknown>, filena
   window.URL.revokeObjectURL(blobUrl);
 };
 
-export const downloadReportCSV = (report_type: string) => {
-  return downloadBlob(`/reports/${report_type}/export`, { company_id: 1 }, `${report_type}_report.csv`);
+export interface ReportExportFilters {
+  from_date?: string;
+  to_date?: string;
+  department_id?: number;
+  year?: number;
+  month?: number;
+}
+
+export const downloadReportCSV = (report_type: string, filters: ReportExportFilters = {}) => {
+  return downloadBlob(`/reports/${report_type}/export`, { company_id: 1, ...filters }, `${report_type}_report.csv`);
+};
+
+export const downloadReportExcel = (report_type: string, filters: ReportExportFilters = {}) => {
+  return downloadBlob(`/reports/${report_type}/export-excel`, { company_id: 1, ...filters }, `${report_type}_report.xlsx`);
 };
 
 export const downloadEmployeeExcelReport = (employeeId: number, fromDate: string, toDate: string, employeeName: string) => {

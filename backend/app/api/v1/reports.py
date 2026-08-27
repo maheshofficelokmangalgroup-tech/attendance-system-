@@ -27,15 +27,21 @@ def dashboard_analytics(
 
 @router.get("/muster-roll", response_model=APIResponse[MusterRollReportResponse], summary="Get Monthly Muster Roll Matrix (Grid days 1-31)")
 def muster_roll(
-    year: int = Query(default=2026),
-    month: int = Query(default=7, ge=1, le=12),
+    year: Optional[int] = Query(default=None),
+    month: Optional[int] = Query(default=None, ge=1, le=12),
     company_id: int = Query(default=1),
     department_id: Optional[int] = Query(default=None),
     current_user: User = Depends(require_permission("view", "report")),
     db: Session = Depends(get_db),
 ):
     svc = ReportService(db)
-    return APIResponse(data=svc.get_muster_roll(company_id=company_id, year=year, month=month, department_id=department_id))
+    today = today_ist()
+    return APIResponse(data=svc.get_muster_roll(
+        company_id=company_id,
+        year=year if year is not None else today.year,
+        month=month if month is not None else today.month,
+        department_id=department_id,
+    ))
 
 
 @router.get("/{report_type}", response_model=APIResponse[GenericReportResponse], summary="Get JSON data for any of the 10 report types")
@@ -56,16 +62,44 @@ def get_report_data(
 def export_report_csv(
     report_type: str,
     company_id: int = Query(default=1),
+    from_date: Optional[date] = Query(default=None),
+    to_date: Optional[date] = Query(default=None),
+    department_id: Optional[int] = Query(default=None),
+    year: Optional[int] = Query(default=None),
+    month: Optional[int] = Query(default=None, ge=1, le=12),
     current_user: User = Depends(require_permission("export", "report")),
     db: Session = Depends(get_db),
 ):
     svc = ReportService(db)
-    csv_content = svc.export_csv(report_type, company_id)
+    csv_content = svc.export_csv(report_type, company_id, from_date, to_date, department_id, year, month)
     filename = f"{report_type}_report_{today_ist().strftime('%Y%m%d')}.csv"
 
     return Response(
         content=csv_content,
         media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/{report_type}/export-excel", summary="Export report to a styled .xlsx file download")
+def export_report_excel(
+    report_type: str,
+    company_id: int = Query(default=1),
+    from_date: Optional[date] = Query(default=None),
+    to_date: Optional[date] = Query(default=None),
+    department_id: Optional[int] = Query(default=None),
+    year: Optional[int] = Query(default=None),
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    current_user: User = Depends(require_permission("export", "report")),
+    db: Session = Depends(get_db),
+):
+    svc = ReportService(db)
+    xlsx_bytes = svc.export_excel(report_type, company_id, from_date, to_date, department_id, year, month)
+    filename = f"{report_type}_report_{today_ist().strftime('%Y%m%d')}.xlsx"
+
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 

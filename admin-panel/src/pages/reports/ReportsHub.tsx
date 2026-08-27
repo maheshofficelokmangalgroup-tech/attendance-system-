@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import DataTable, { Column } from "@/components/ui/DataTable";
 import {
-  fetchReportData, fetchMusterRoll, downloadReportCSV, downloadEmployeeExcelReport,
+  fetchReportData, fetchMusterRoll, downloadReportCSV, downloadReportExcel, downloadEmployeeExcelReport,
   GenericReportData, MusterRollData,
 } from "@/api/reports";
 import apiClient from "@/api/client";
@@ -207,8 +207,9 @@ const ReportsHub: React.FC = () => {
   const [deptId, setDeptId] = useState<number | "">("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [month, setMonth] = useState(7);
-  const [year, setYear] = useState(2026);
+  const today = new Date();
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [year, setYear] = useState(today.getFullYear());
 
   useEffect(() => {
     apiClient.get("/departments?company_id=1&page_size=100")
@@ -238,6 +239,13 @@ const ReportsHub: React.FC = () => {
 
   const currentMeta = REPORT_TYPES.find((r) => r.id === selectedReportId) ?? REPORT_TYPES[0];
 
+  // Exports should reflect whatever's on screen, not always the unfiltered
+  // full dataset — otherwise "Export CSV/Excel" silently ignores the date
+  // range, department, or muster-roll month the admin just picked.
+  const exportFilters = selectedReportId === "muster_roll"
+    ? { year, month, department_id: deptId || undefined }
+    : { from_date: fromDate || undefined, to_date: toDate || undefined, department_id: deptId || undefined };
+
   const genericColumns: Column<Record<string, unknown>>[] = (reportData?.headers ?? []).map((h, idx) => ({
     key: `col_${idx}`,
     header: h,
@@ -265,13 +273,22 @@ const ReportsHub: React.FC = () => {
           </p>
         </div>
         {selectedReportId !== "employee_excel" && (
-          <button
-            className="btn-primary"
-            onClick={() => downloadReportCSV(selectedReportId).catch((e: any) => alert(e?.response?.data?.detail ?? "Export failed"))}
-            id="export-csv-btn"
-          >
-            <Download size={16} /> Export CSV
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button
+              className="btn-ghost"
+              onClick={() => downloadReportCSV(selectedReportId, exportFilters).catch((e: any) => alert(e?.response?.data?.detail ?? "Export failed"))}
+              id="export-csv-btn"
+            >
+              <Download size={16} /> Export CSV
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => downloadReportExcel(selectedReportId, exportFilters).catch((e: any) => alert(e?.response?.data?.detail ?? "Export failed"))}
+              id="export-excel-btn"
+            >
+              <FileSpreadsheet size={16} /> Export Excel
+            </button>
+          </div>
         )}
       </div>
 
@@ -352,8 +369,9 @@ const ReportsHub: React.FC = () => {
                     ))}
                   </select>
                   <select className="input" style={{ width: "100px" }} value={year} onChange={(e) => setYear(Number(e.target.value))}>
-                    <option value={2026}>2026</option>
-                    <option value={2025}>2025</option>
+                    {[today.getFullYear(), today.getFullYear() - 1].map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
                   </select>
                 </div>
               ) : (
