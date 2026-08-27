@@ -15,7 +15,7 @@ from sqlalchemy import func, or_, and_
 from app.models.attendance import Attendance, AttendanceStatusEnum, AttendanceDeviceLog
 from app.models.employee import Employee
 from app.models.company import Department, Shift
-from app.models.leave import Leave, LeaveBalance, LeaveType, LeaveStatusEnum
+from app.models.leave import Leave, LeaveBalance, LeaveType, LeaveStatusEnum, Holiday
 from app.models.audit import AuditLog
 from app.schemas.reports import (
     DashboardAnalyticsResponse, DailyTrendItem, DepartmentDistributionItem,
@@ -185,6 +185,28 @@ class ReportService:
             emp_q = emp_q.filter(Employee.department_id == department_id)
         employees = emp_q.order_by(Employee.employee_code).all()
 
+        # Days with no attendance row aren't necessarily "Absent" — they may be
+        # a company holiday, a weekly off, or before the employee even joined.
+        # Marking every such day "A" (the old behavior) makes a brand-new
+        # month, or any month with weekends, look like mass absenteeism —
+        # exactly what a payroll muster roll must not do.
+        holiday_days = {
+            h.date.day
+            for h in self.db.query(Holiday)
+            .filter(Holiday.company_id == company_id, Holiday.date >= from_d, Holiday.date <= to_d)
+            .all()
+        }
+        status_code_map = {
+            "present": "P",
+            "late": "L",
+            "half_day": "HD",
+            "wfh": "WFH",
+            "on_duty": "OD",
+            "on_leave": "OL",
+            "holiday": "HO",
+            "weekly_off": "WO",
+        }
+
         rows = []
         for emp in employees:
             atts = (
@@ -204,18 +226,17 @@ class ReportService:
             tot_l = 0.0
 
             for day_num in range(1, total_days + 1):
-                st = att_map.get(day_num, "ABSENT")
-                status_code_map = {
-                    "present": "P",
-                    "late": "L",
-                    "half_day": "HD",
-                    "wfh": "WFH",
-                    "on_duty": "OD",
-                    "on_leave": "OL",
-                    "holiday": "HO",
-                    "weekly_off": "WO",
-                }
-                code = status_code_map.get(st, "A")
+                current_date = date(year, month, day_num)
+                if current_date < emp.date_of_joining:
+                    code = "—"  # not yet an employee — excluded from totals
+                elif day_num in att_map:
+                    code = status_code_map.get(att_map[day_num], "A")
+                elif day_num in holiday_days:
+                    code = "HO"
+                elif current_date.weekday() >= 5:  # Sat/Sun — matches the
+                    code = "WO"                     # weekend convention used
+                else:                                # elsewhere (seed data, Excel export)
+                    code = "A"
                 day_status_map[day_num] = code
 
                 if code in ("P", "L", "WFH", "OD"):
@@ -272,13 +293,14 @@ class ReportService:
 
         if report_type == "daily_summary":
             headers = ["Date", "Employee Code", "Name", "Department", "Check-In", "Check-Out", "Hours", "Status"]
-            atts = (
+            q = (
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(Employee.company_id == company_id, Attendance.date >= from_date, Attendance.date <= to_date)
-                .order_by(Attendance.date.desc(), Employee.first_name)
-                .all()
             )
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            atts = q.order_by(Attendance.date.desc(), Employee.first_name).all()
             for a in atts:
                 rows.append([
                     str(a.date),
@@ -293,7 +315,7 @@ class ReportService:
 
         elif report_type == "late_early":
             headers = ["Date", "Employee Code", "Name", "Department", "Check-In Time", "Status", "GPS Accuracy"]
-            atts = (
+            q = (
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
@@ -301,8 +323,10 @@ class ReportService:
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.status.in_([AttendanceStatusEnum.LATE, AttendanceStatusEnum.HALF_DAY]),
                 )
-                .all()
             )
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            atts = q.all()
             for a in atts:
                 rows.append([
                     str(a.date),
@@ -316,12 +340,14 @@ class ReportService:
 
         elif report_type == "leave_utilization":
             headers = ["Employee Code", "Name", "Department", "Leave Type", "Year", "Total Entitled", "Used Days", "Balance Days"]
-            bals = (
+            q = (
                 self.db.query(LeaveBalance)
                 .join(Employee, LeaveBalance.employee_id == Employee.id)
                 .filter(Employee.company_id == company_id)
-                .all()
             )
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            bals = q.all()
             for b in bals:
                 rows.append([
                     b.employee.employee_code if b.employee else "",
@@ -336,7 +362,10 @@ class ReportService:
 
         elif report_type == "employee_master":
             headers = ["Code", "Full Name", "Email", "Phone", "Department", "Designation", "Shift", "Status"]
-            emps = self.db.query(Employee).filter(Employee.company_id == company_id).all()
+            q = self.db.query(Employee).filter(Employee.company_id == company_id)
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            emps = q.all()
             for e in emps:
                 rows.append([
                     e.employee_code,
@@ -351,7 +380,7 @@ class ReportService:
 
         elif report_type == "absenteeism":
             headers = ["Date", "Employee Code", "Name", "Department", "Status"]
-            atts = (
+            q = (
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
@@ -359,9 +388,10 @@ class ReportService:
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.status == AttendanceStatusEnum.ABSENT,
                 )
-                .order_by(Attendance.date.desc())
-                .all()
             )
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            atts = q.order_by(Attendance.date.desc()).all()
             for a in atts:
                 rows.append([
                     str(a.date),
@@ -373,7 +403,7 @@ class ReportService:
 
         elif report_type == "overtime":
             headers = ["Date", "Employee Code", "Name", "Department", "Shift Hours", "Worked Hours", "Overtime Hours"]
-            atts = (
+            q = (
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
@@ -381,8 +411,10 @@ class ReportService:
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.working_hours.isnot(None),
                 )
-                .all()
             )
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            atts = q.all()
             for a in atts:
                 shift_hours = float(a.employee.shift.working_hours) if a.employee and a.employee.shift else 8.0
                 worked = float(a.working_hours or 0)
@@ -401,7 +433,7 @@ class ReportService:
 
         elif report_type == "wfh_onduty":
             headers = ["Date", "Employee Code", "Name", "Department", "Status", "Check-In", "Check-Out"]
-            atts = (
+            q = (
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
@@ -409,9 +441,10 @@ class ReportService:
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.status.in_([AttendanceStatusEnum.WFH, AttendanceStatusEnum.ON_DUTY]),
                 )
-                .order_by(Attendance.date.desc())
-                .all()
             )
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            atts = q.order_by(Attendance.date.desc()).all()
             for a in atts:
                 rows.append([
                     str(a.date),
@@ -448,11 +481,10 @@ class ReportService:
 
         elif report_type == "shift_compliance":
             headers = ["Employee Code", "Name", "Department", "Shift", "Shift Start", "Shift End", "Grace (min)"]
-            emps = (
-                self.db.query(Employee)
-                .filter(Employee.company_id == company_id, Employee.is_active == True)  # noqa
-                .all()
-            )
+            q = self.db.query(Employee).filter(Employee.company_id == company_id, Employee.is_active == True)  # noqa
+            if department_id:
+                q = q.filter(Employee.department_id == department_id)
+            emps = q.all()
             for e in emps:
                 if not e.shift:
                     continue
@@ -481,14 +513,113 @@ class ReportService:
             total_records=len(rows),
         )
 
-    def export_csv(self, report_type: str, company_id: int) -> str:
-        rep = self.generate_report(report_type, company_id)
+    def export_csv(
+        self,
+        report_type: str,
+        company_id: int,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        department_id: Optional[int] = None,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
+    ) -> str:
         output = io.StringIO()
         writer = csv.writer(output)
+
+        # generate_report() has no "muster_roll" branch — exporting it used to
+        # 400 with "Unknown report_type 'muster_roll'" no matter what. Build
+        # its CSV straight from the same grid the on-screen table uses.
+        if report_type == "muster_roll":
+            today = today_ist()
+            data = self.get_muster_roll(
+                company_id=company_id,
+                year=year if year is not None else today.year,
+                month=month if month is not None else today.month,
+                department_id=department_id,
+            )
+            writer.writerow(["Emp Code", "Name"] + [str(d) for d in range(1, data.total_days + 1)] + ["Present", "Absent", "Leave"])
+            for row in data.rows:
+                writer.writerow([row.employee_code, row.full_name] + [row.days.get(d, "—") for d in range(1, data.total_days + 1)] + [row.total_present, row.total_absent, row.total_leave])
+            return output.getvalue()
+
+        rep = self.generate_report(report_type, company_id, from_date, to_date, department_id)
         writer.writerow(rep.headers)
         for r in rep.rows:
             writer.writerow(r)
         return output.getvalue()
+
+    def export_excel(
+        self,
+        report_type: str,
+        company_id: int,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        department_id: Optional[int] = None,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
+    ) -> bytes:
+        """Generic .xlsx export — same data as export_csv/get_muster_roll, just
+        styled like the per-employee Excel report instead of plain CSV."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+
+        primary_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True, size=11)
+        thin_border = Border(*(Side(style="thin", color="E2E8F0") for _ in range(4)))
+        center = Alignment(horizontal="center", vertical="center")
+
+        if report_type == "muster_roll":
+            today = today_ist()
+            data = self.get_muster_roll(
+                company_id=company_id,
+                year=year if year is not None else today.year,
+                month=month if month is not None else today.month,
+                department_id=department_id,
+            )
+            ws.title = f"Muster Roll {data.month}-{data.year}"
+            headers = ["Emp Code", "Name"] + [str(d) for d in range(1, data.total_days + 1)] + ["Present", "Absent", "Leave"]
+            for col, h in enumerate(headers, start=1):
+                cell = ws.cell(row=1, column=col, value=h)
+                cell.font = header_font
+                cell.fill = primary_fill
+                cell.alignment = center
+                cell.border = thin_border
+            for r_idx, row in enumerate(data.rows, start=2):
+                values = [row.employee_code, row.full_name] + [row.days.get(d, "—") for d in range(1, data.total_days + 1)] + [row.total_present, row.total_absent, row.total_leave]
+                for col, v in enumerate(values, start=1):
+                    cell = ws.cell(row=r_idx, column=col, value=v)
+                    cell.border = thin_border
+                    if col > 2:
+                        cell.alignment = center
+            ws.column_dimensions["A"].width = 12
+            ws.column_dimensions["B"].width = 22
+            for i in range(3, 3 + data.total_days):
+                ws.column_dimensions[get_column_letter(i)].width = 5
+            ws.freeze_panes = "C2"
+        else:
+            rep = self.generate_report(report_type, company_id, from_date, to_date, department_id)
+            ws.title = rep.title[:31]  # Excel sheet-name length limit
+            for col, h in enumerate(rep.headers, start=1):
+                cell = ws.cell(row=1, column=col, value=h)
+                cell.font = header_font
+                cell.fill = primary_fill
+                cell.alignment = center
+                cell.border = thin_border
+            for r_idx, row in enumerate(rep.rows, start=2):
+                for col, v in enumerate(row, start=1):
+                    cell = ws.cell(row=r_idx, column=col, value=v)
+                    cell.border = thin_border
+            for i, h in enumerate(rep.headers, start=1):
+                ws.column_dimensions[get_column_letter(i)].width = max(12, min(40, len(h) + 4))
+            ws.freeze_panes = "A2"
+
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        return buffer.getvalue()
 
     # ------------------------------------------------------------------
     # Per-Employee Excel Report — search an employee, pick a date range
