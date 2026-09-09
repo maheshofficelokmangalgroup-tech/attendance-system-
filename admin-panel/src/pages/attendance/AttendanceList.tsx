@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Calendar, MapPin, Eye, Edit3, X, Check, ExternalLink,
   Smartphone, Wifi, ShieldAlert, Filter, UserCheck, UserX, Clock, Home, CalendarCheck,
+  MessageSquareWarning,
 } from "lucide-react";
 import DataTable, { Column } from "@/components/ui/DataTable";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -184,7 +185,16 @@ const AttendanceList: React.FC = () => {
     {
       key: "status",
       header: "Status",
-      render: (v) => <StatusBadge status={(v as string).toLowerCase() as StatusKey} size="md" />,
+      render: (v, row) => (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <StatusBadge status={(v as string).toLowerCase() as StatusKey} size="md" />
+          {row.late_reason && (
+            <span title={`Employee's reason: "${row.late_reason}"`} style={{ display: "inline-flex" }}>
+              <MessageSquareWarning size={15} color="#D97706" />
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       key: "actions",
@@ -344,6 +354,22 @@ const AttendanceList: React.FC = () => {
                 <Edit3 size={14} /> Regularize
               </button>
             </div>
+
+            {/* Employee's self-reported reason for a late check-in */}
+            {selectedItem.late_reason && (
+              <div style={{ padding: "14px 16px", borderRadius: "12px", background: "rgba(217, 119, 6, 0.08)", border: "1px solid rgba(217, 119, 6, 0.25)", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                <MessageSquareWarning size={18} color="#D97706" style={{ flexShrink: 0, marginTop: "2px" }} />
+                <div>
+                  <p style={{ fontSize: "13px", fontWeight: 600, color: "#D97706" }}>Employee's Reason for Late Check-In</p>
+                  <p style={{ fontSize: "13px", color: "var(--color-text-primary)", marginTop: "4px", whiteSpace: "pre-wrap" }}>
+                    {selectedItem.late_reason}
+                  </p>
+                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "6px" }}>
+                    Review this and use Regularize below to keep the record as Late or mark it Present.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Regularization Form inline if toggled */}
             {isRegularizeMode && (

@@ -32,6 +32,7 @@ export interface AttendanceItem {
 
   working_hours?: number;
   status: string;
+  late_reason?: string;
   remarks?: string;
   is_regularized: boolean;
   device_logs?: Array<{

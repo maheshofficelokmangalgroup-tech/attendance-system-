@@ -123,6 +123,8 @@ class AttendanceService:
             attendance.check_in_google_maps_url = gmaps_url
             attendance.check_in_gps_accuracy = meta.gps_accuracy
             attendance.status = initial_status
+            if meta.late_reason:
+                attendance.late_reason = meta.late_reason
         else:
             attendance = Attendance(
                 employee_id=employee_id,
@@ -135,6 +137,7 @@ class AttendanceService:
                 check_in_google_maps_url=gmaps_url,
                 check_in_gps_accuracy=meta.gps_accuracy,
                 status=initial_status,
+                late_reason=meta.late_reason,
             )
             self.repo.create(attendance)
             self.db.flush()
@@ -202,27 +205,32 @@ class AttendanceService:
                 detail=f"Already checked out today at {attendance.check_out_time.strftime('%I:%M %p')}",
             )
 
-        # Validate GPS
-        if not validate_gps_accuracy(meta.gps_accuracy, max_allowed_meters=50.0):
+        # Check-out no longer collects GPS — only validate/geofence when a
+        # location was actually provided (e.g. an older client still sending it).
+        has_location = meta.latitude is not None and meta.longitude is not None
+
+        if meta.gps_accuracy is not None and not validate_gps_accuracy(meta.gps_accuracy, max_allowed_meters=50.0):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"GPS accuracy ({meta.gps_accuracy:.1f}m) is lower than required threshold. Move to an open area and retry.",
             )
 
         employee = self.employee_repo.get(employee_id)
-        company = employee.company if employee else None
-        within_geofence, distance = validate_geofence(
-            meta.latitude, meta.longitude,
-            company.office_latitude if company else None,
-            company.office_longitude if company else None,
-            company.geofence_radius_meters if company else None,
-        )
-        if not within_geofence:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"You are {distance:.0f}m away from the office — outside the allowed "
-                       f"{company.geofence_radius_meters:.0f}m geofence radius.",
+
+        if has_location:
+            company = employee.company if employee else None
+            within_geofence, distance = validate_geofence(
+                meta.latitude, meta.longitude,
+                company.office_latitude if company else None,
+                company.office_longitude if company else None,
+                company.geofence_radius_meters if company else None,
             )
+            if not within_geofence:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"You are {distance:.0f}m away from the office — outside the allowed "
+                           f"{company.geofence_radius_meters:.0f}m geofence radius.",
+                )
 
         # Save photo
         ext = "." + filename.split(".")[-1] if "." in filename else ".jpg"
@@ -230,9 +238,9 @@ class AttendanceService:
         relative_storage_path = f"attendance/{save_filename}"
         photo_url = self.storage.save_file(photo_file, relative_storage_path)
 
-        # Reverse Geocode & Google Maps URL (matches check-in behavior)
-        address = reverse_geocode_sync(meta.latitude, meta.longitude)
-        gmaps_url = build_google_maps_url(meta.latitude, meta.longitude)
+        # Reverse Geocode & Google Maps URL — only when a location was provided
+        address = reverse_geocode_sync(meta.latitude, meta.longitude) if has_location else None
+        gmaps_url = build_google_maps_url(meta.latitude, meta.longitude) if has_location else None
 
         # Compute Working Hours
         check_in_dt = datetime.combine(today, attendance.check_in_time)

@@ -2,7 +2,7 @@ import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, CalendarCheck, FileText,
-  Settings, LogOut, Bell, Building2, Clock, ChevronRight,
+  Settings, LogOut, Bell, Building2, Clock, ChevronRight, Monitor,
 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store";
@@ -21,6 +21,7 @@ const navItems: NavItem[] = [
   { to: "/employees", icon: Users, label: "Employees", roles: ["admin", "hr"] },
   { to: "/attendance", icon: Clock, label: "Attendance" },
   { to: "/leave", icon: CalendarCheck, label: "Leave" },
+  { to: "/wfh", icon: Monitor, label: "WFH", roles: ["admin", "hr", "manager"] },
   { to: "/reports", icon: FileText, label: "Reports", roles: ["admin", "hr", "manager"] },
   { to: "/notifications", icon: Bell, label: "Notifications" },
   { to: "/settings", icon: Settings, label: "Settings", roles: ["admin", "hr"] },

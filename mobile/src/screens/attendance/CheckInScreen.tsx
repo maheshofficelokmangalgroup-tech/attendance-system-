@@ -5,8 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  TextInput,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -24,6 +27,7 @@ type Step = "primer" | "capture" | "review" | "success";
 export const CheckInScreen = ({ navigation }: any) => {
   const [step, setStep] = useState<Step>("primer");
   const [currentTime, setCurrentTime] = useState("");
+  const [lateReason, setLateReason] = useState("");
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -149,6 +153,9 @@ export const CheckInScreen = ({ navigation }: any) => {
       formData.append("os_version", `${Platform.OS} ${Platform.Version}`);
       formData.append("app_version", "1.0.0");
       formData.append("connection_type", "unknown");
+      if (lateReason.trim()) {
+        formData.append("late_reason", lateReason.trim());
+      }
 
       if (Platform.OS === "web") {
         // React Native's { uri, name, type } FormData shorthand only works via
@@ -278,49 +285,73 @@ export const CheckInScreen = ({ navigation }: any) => {
       {/* STEP 3: Review Screen */}
       {/* ---------------------------------------------------------------- */}
       {step === "review" && (
-        <FadeInView style={styles.reviewContainer} translateY={12}>
-          <Text style={styles.reviewTitle}>Confirm Check-In</Text>
-          
-          <View style={styles.previewCard}>
-            {photoPath ? (
-              <Image
-                source={{ uri: photoPath }}
-                style={styles.photoPlaceholder}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.photoPlaceholder}>
-                <Text style={styles.photoPlaceholderText}>No photo captured</Text>
-              </View>
-            )}
+        <FadeInView style={{ flex: 1 }} translateY={12}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <ScrollView contentContainerStyle={styles.reviewContainer} keyboardShouldPersistTaps="handled">
+            <Text style={styles.reviewTitle}>Confirm Check-In</Text>
 
-            <View style={styles.reviewDetails}>
-              <Text style={styles.detailTime}>⏰ Check-In Time: {currentTime}</Text>
-              <Text style={styles.detailAddress}>📍 Location: {address}</Text>
-              <Text style={styles.detailGps}>Accuracy: {gpsAccuracy ?? "—"}m (Verified)</Text>
-            </View>
-          </View>
-
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={() => setStep("capture")}
-            >
-              <Text style={styles.secondaryButtonText}>Retake Photo</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.primaryButton, { flex: 1 }, isSubmitting && styles.buttonDisabled]}
-              onPress={handleConfirmCheckIn}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFF" />
+            <View style={styles.previewCard}>
+              {photoPath ? (
+                <Image
+                  source={{ uri: photoPath }}
+                  style={styles.photoPlaceholder}
+                  resizeMode="cover"
+                />
               ) : (
-                <Text style={styles.primaryButtonText}>Confirm & Check In</Text>
+                <View style={styles.photoPlaceholder}>
+                  <Text style={styles.photoPlaceholderText}>No photo captured</Text>
+                </View>
               )}
-            </TouchableOpacity>
-          </View>
+
+              <View style={styles.reviewDetails}>
+                <Text style={styles.detailTime}>⏰ Check-In Time: {currentTime}</Text>
+                <Text style={styles.detailAddress}>📍 Location: {address}</Text>
+                <Text style={styles.detailGps}>Accuracy: {gpsAccuracy ?? "—"}m (Verified)</Text>
+              </View>
+            </View>
+
+            <View style={styles.taskCard}>
+              <Text style={styles.taskLabel}>Running late? Tell us why</Text>
+              <TextInput
+                style={styles.taskInput}
+                placeholder="e.g. Stuck in traffic, doctor's appointment…"
+                placeholderTextColor={colors.textSecondary}
+                value={lateReason}
+                onChangeText={setLateReason}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+              <Text style={styles.taskHint}>
+                Optional. If your check-in is marked Late, this reason is shown to your admin — they'll decide whether to keep it Late or mark you Present.
+              </Text>
+            </View>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setStep("capture")}
+              >
+                <Text style={styles.secondaryButtonText}>Retake Photo</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { flex: 1 }, isSubmitting && styles.buttonDisabled]}
+                onPress={handleConfirmCheckIn}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Confirm & Check In</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
         </FadeInView>
       )}
 
@@ -535,9 +566,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   reviewContainer: {
-    flex: 1,
     padding: spacing.xl,
-    justifyContent: "center",
+    paddingBottom: spacing.xl * 2,
   },
   reviewTitle: {
     fontSize: 22,
@@ -582,6 +612,36 @@ const styles = StyleSheet.create({
     color: "#059669",
     fontSize: 12,
     fontWeight: "600",
+  },
+  taskCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.xl,
+    borderColor: colors.border,
+    borderWidth: 1,
+  },
+  taskLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
+  },
+  taskInput: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.input,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.textPrimary,
+    fontSize: 14,
+    minHeight: 70,
+  },
+  taskHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
   },
   actionRow: {
     flexDirection: "row",
