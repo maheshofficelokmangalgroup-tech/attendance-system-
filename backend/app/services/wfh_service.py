@@ -43,6 +43,11 @@ class WfhService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="End date cannot be earlier than start date",
             )
+        if (payload.to_date - payload.from_date).days > 90:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="WFH requests cannot span more than 90 days",
+            )
 
         employee = self.employee_repo.get(employee_id)
         if not employee:
@@ -192,8 +197,20 @@ class WfhService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Request is already {wfh.status.value}")
 
         if wfh.status == WfhStatusEnum.APPROVED:
-            # Clear linked attendance records so the day reverts to unmarked
-            self.db.query(Attendance).filter(Attendance.wfh_request_id == wfh.id).delete()
+            # Undo the attendance-sync from approve(). That step either
+            # created a fresh WFH placeholder row, or overwrote the status
+            # on a row that already had a real check-in (approving WFH for a
+            # day the employee had already attended). Deleting every linked
+            # row unconditionally would destroy that real check-in/check-out
+            # data too — only the placeholders (no check-in and no check-out
+            # ever recorded) are safe to hard-delete; anything else is just
+            # unlinked so it keeps its real data.
+            linked = self.db.query(Attendance).filter(Attendance.wfh_request_id == wfh.id).all()
+            for att in linked:
+                if att.check_in_time is None and att.check_out_time is None:
+                    self.db.delete(att)
+                else:
+                    att.wfh_request_id = None
 
         wfh.status = WfhStatusEnum.CANCELLED
         self.audit_repo.log(

@@ -101,6 +101,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
   };
 
   const submitCheckOut = async () => {
+    if (!photoPath) return; // already checked in handleConfirmCheckOut; narrows the type for TS here too
     setIsSubmitting(true);
     try {
       const formData = new FormData();
