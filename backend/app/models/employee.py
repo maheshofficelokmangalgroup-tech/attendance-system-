@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from app.models.attendance import Attendance
     from app.models.leave import Leave, LeaveBalance, CompOff
     from app.models.notification import Notification
+    from app.models.wfh import WfhRequest
 
 
 class GenderEnum(str, enum.Enum):
@@ -110,6 +111,9 @@ class Employee(Base):
     )
     comp_offs: Mapped[List["CompOff"]] = relationship(
         "CompOff", back_populates="employee", foreign_keys="CompOff.employee_id"
+    )
+    wfh_requests: Mapped[List["WfhRequest"]] = relationship(
+        "WfhRequest", back_populates="employee", foreign_keys="WfhRequest.employee_id"
     )
     notifications: Mapped[List["Notification"]] = relationship(
         "Notification", back_populates="employee"

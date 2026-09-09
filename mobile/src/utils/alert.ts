@@ -16,3 +16,28 @@ export function showAlert(title: string, message?: string): void {
     Alert.alert(title, message);
   }
 }
+
+/**
+ * Yes/No confirmation. Same web/native split as showAlert — react-native-web's
+ * Alert.alert() is a no-op, so web goes through window.confirm() (which
+ * natively returns a boolean for OK/Cancel) instead.
+ */
+export function showConfirm(
+  title: string,
+  message: string,
+  onConfirm: () => void,
+  onCancel?: () => void
+): void {
+  if (Platform.OS === "web") {
+    if (window.confirm(`${title}\n\n${message}`)) {
+      onConfirm();
+    } else {
+      onCancel?.();
+    }
+  } else {
+    Alert.alert(title, message, [
+      { text: "No", style: "cancel", onPress: onCancel },
+      { text: "Yes", style: "default", onPress: onConfirm },
+    ]);
+  }
+}

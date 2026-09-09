@@ -19,6 +19,7 @@ const Profile = lazy(() => import("@/pages/Profile"));
 
 const AttendanceList = lazy(() => import("@/pages/attendance/AttendanceList"));
 const LeaveManagement = lazy(() => import("@/pages/leave/LeaveManagement"));
+const WfhManagement = lazy(() => import("@/pages/wfh/WfhManagement"));
 const ReportsHub = lazy(() => import("@/pages/reports/ReportsHub"));
 const NotificationCenter = lazy(() => import("@/pages/notifications/NotificationCenter"));
 
@@ -40,6 +41,7 @@ const router = createBrowserRouter([
           { path: "/dashboard", element: <Suspense fallback={<PageLoader />}><Dashboard /></Suspense> },
           { path: "/attendance", element: <Suspense fallback={<PageLoader />}><AttendanceList /></Suspense> },
           { path: "/leave", element: <Suspense fallback={<PageLoader />}><LeaveManagement /></Suspense> },
+          { path: "/wfh", element: <Suspense fallback={<PageLoader />}><WfhManagement /></Suspense> },
           { path: "/notifications", element: <Suspense fallback={<PageLoader />}><NotificationCenter /></Suspense> },
           { path: "/profile", element: <Suspense fallback={<PageLoader />}><Profile /></Suspense> },
 

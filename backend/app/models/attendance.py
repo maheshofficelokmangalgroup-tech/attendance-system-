@@ -18,6 +18,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.employee import Employee
     from app.models.leave import Leave
+    from app.models.wfh import WfhRequest
 
 
 class AttendanceStatusEnum(str, enum.Enum):
@@ -69,6 +70,11 @@ class Attendance(Base):
     # What the employee says they worked on today, entered at check-out time.
     checkout_task_summary: Mapped[Optional[str]] = mapped_column(Text)
 
+    # Employee's self-reported reason for a late check-in (entered on the
+    # check-in form itself). Admin/HR/Manager review it and either keep the
+    # LATE status or override it via the existing regularize() flow.
+    late_reason: Mapped[Optional[str]] = mapped_column(Text)
+
     # Computed
     working_hours: Mapped[Optional[float]] = mapped_column(Numeric(5, 2))
     status: Mapped[AttendanceStatusEnum] = mapped_column(
@@ -78,6 +84,10 @@ class Attendance(Base):
     # Leave linkage (set by leave workflow)
     leave_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("leaves.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # WFH linkage (set by WFH approval workflow)
+    wfh_request_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("wfh_requests.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     remarks: Mapped[Optional[str]] = mapped_column(Text)
@@ -98,6 +108,7 @@ class Attendance(Base):
         "AttendanceDeviceLog", back_populates="attendance", cascade="all, delete-orphan"
     )
     leave: Mapped[Optional["Leave"]] = relationship("Leave", back_populates="attendance_records")
+    wfh_request: Mapped[Optional["WfhRequest"]] = relationship("WfhRequest", back_populates="attendance_records")
 
 
 class AttendanceDeviceLog(Base):

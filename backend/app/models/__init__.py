@@ -7,6 +7,7 @@ from app.models.user import User, Role, Permission, RefreshToken, role_permissio
 from app.models.employee import Employee, EmployeeKyc, EmployeeAsset, AssetStatusEnum
 from app.models.attendance import Attendance, AttendanceDeviceLog
 from app.models.leave import LeaveType, LeaveBalance, Leave, Holiday, CompOff
+from app.models.wfh import WfhRequest, WfhStatusEnum
 from app.models.audit import AuditLog
 from app.models.notification import Notification
 from app.models.settings import Settings
@@ -17,6 +18,7 @@ __all__ = [
     "Employee", "EmployeeKyc", "EmployeeAsset", "AssetStatusEnum",
     "Attendance", "AttendanceDeviceLog",
     "LeaveType", "LeaveBalance", "Leave", "Holiday", "CompOff",
+    "WfhRequest", "WfhStatusEnum",
     "AuditLog",
     "Notification",
     "Settings",

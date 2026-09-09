@@ -17,12 +17,14 @@ class CheckInMetaData(BaseModel):
     app_version: Optional[str] = None
     connection_type: Optional[str] = None
     face_embedding: Optional[bytes] = None  # Nullable BLOB for future face recognition
+    late_reason: Optional[str] = Field(None, max_length=1000)
 
 
 class CheckOutMetaData(BaseModel):
-    latitude: float = Field(..., ge=-90.0, le=90.0)
-    longitude: float = Field(..., ge=-180.0, le=180.0)
-    gps_accuracy: float = Field(..., ge=0.0)
+    # Check-out no longer collects GPS — selfie + task summary only.
+    latitude: Optional[float] = Field(None, ge=-90.0, le=90.0)
+    longitude: Optional[float] = Field(None, ge=-180.0, le=180.0)
+    gps_accuracy: Optional[float] = Field(None, ge=0.0)
     device_id: Optional[str] = None
     device_model: Optional[str] = None
     os_version: Optional[str] = None
@@ -85,6 +87,7 @@ class AttendanceResponse(BaseModel):
 
     working_hours: Optional[float] = None
     status: AttendanceStatusEnum
+    late_reason: Optional[str] = None
     remarks: Optional[str] = None
     is_regularized: bool
     device_logs: List[AttendanceDeviceLogResponse] = []

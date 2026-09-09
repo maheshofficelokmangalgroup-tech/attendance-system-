@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useSelector } from "react-redux";
+import { Feather } from "@expo/vector-icons";
+import { useDispatch, useSelector } from "react-redux";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme, ThemePalette } from "../../theme/ThemeContext";
-import { RootState } from "../../redux/store";
+import { RootState, AppDispatch } from "../../redux/store";
 import apiClient from "../../api/client";
+import { setNotifications } from "../../redux/slices/notificationSlice";
 import { FadeInView } from "../../components/FadeInView";
 import { SkeletonBlock } from "../../components/SkeletonBlock";
 
@@ -26,7 +28,9 @@ const PRESENT_STATUSES = ["present", "late", "half_day", "early_exit", "on_duty"
 const LEAVE_STATUSES = ["on_leave", "lwp"];
 
 export const DashboardScreen = ({ navigation }: any) => {
+  const dispatch = useDispatch<AppDispatch>();
   const user = useSelector((state: RootState) => state.auth.user);
+  const unreadCount = useSelector((state: RootState) => state.notifications.unread_count);
   const { colors, spacing, radius, shadows } = useTheme();
   const styles = React.useMemo(() => createStyles(colors, spacing, radius, shadows), [colors, spacing, radius, shadows]);
 
@@ -44,11 +48,22 @@ export const DashboardScreen = ({ navigation }: any) => {
       .finally(() => setIsLoading(false));
   }, []);
 
+  const loadNotifications = useCallback(() => {
+    apiClient
+      .get("/notifications?page_size=50")
+      .then(({ data }) => {
+        const list = Array.isArray(data) ? data : data?.data ?? [];
+        dispatch(setNotifications(list));
+      })
+      .catch(() => {});
+  }, [dispatch]);
+
   // Refetch every time this screen regains focus (e.g. returning from Check-In/Out)
   useFocusEffect(
     useCallback(() => {
       loadHistory();
-    }, [loadHistory])
+      loadNotifications();
+    }, [loadHistory, loadNotifications])
   );
 
   const todayStr = new Date().toISOString().split("T")[0];
@@ -89,8 +104,22 @@ export const DashboardScreen = ({ navigation }: any) => {
             <Text style={styles.greeting}>Good day,</Text>
             <Text style={styles.userName}>{user?.full_name ?? user?.email}</Text>
           </View>
-          <View style={styles.roleChip}>
-            <Text style={styles.roleText}>{user?.role_name ?? "Employee"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+            <View style={styles.roleChip}>
+              <Text style={styles.roleText}>{user?.role_name ?? "Employee"}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.bellButton}
+              onPress={() => navigation.navigate("Notifications")}
+              activeOpacity={0.7}
+            >
+              <Feather name="bell" size={18} color={colors.textPrimary} />
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -142,7 +171,7 @@ export const DashboardScreen = ({ navigation }: any) => {
                   style={[styles.checkInButton, { backgroundColor: "#D97706" }]}
                   onPress={() => navigation.navigate("CheckOut")}
                 >
-                  <Text style={styles.checkInButtonText}>📷  Selfie & GPS Check-Out</Text>
+                  <Text style={styles.checkInButtonText}>📷  Selfie Check-Out</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
@@ -261,6 +290,33 @@ const createStyles = (colors: ThemePalette, spacing: any, radius: any, shadows: 
     color: colors.primary,
     fontWeight: "600",
     fontSize: 12,
+  },
+  bellButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bellBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: "#E11D48",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bellBadgeText: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "700",
   },
   heroCard: {
     backgroundColor: colors.surface,

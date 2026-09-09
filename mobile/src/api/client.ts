@@ -1,7 +1,9 @@
 import axios from "axios";
 
-// Production backend API URL — self-hosted on AWS (EC2 + RDS)
-const BASE_URL = "https://13-205-79-72.nip.io:8443/api/v1";
+// Production backend API URL — self-hosted on AWS (EC2 + RDS).
+// Override for local dev via EXPO_PUBLIC_API_URL in .env (must use the
+// EXPO_PUBLIC_ prefix — that's the only way Expo inlines it into the client bundle).
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://13-205-79-72.nip.io:8443/api/v1";
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

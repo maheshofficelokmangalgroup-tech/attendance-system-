@@ -13,13 +13,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as Location from "expo-location";
 import { colors, radius, spacing, shadows } from "../../theme/tokens";
 import apiClient from "../../api/client";
-import { showAlert } from "../../utils/alert";
+import { showAlert, showConfirm } from "../../utils/alert";
 import { FadeInView } from "../../components/FadeInView";
 import { BounceInView } from "../../components/BounceInView";
-import { PulsingDot } from "../../components/PulsingDot";
 import { hapticLight, hapticSuccess, hapticError } from "../../utils/haptics";
 
 type Step = "primer" | "capture" | "review" | "success";
@@ -27,10 +25,6 @@ type Step = "primer" | "capture" | "review" | "success";
 export const CheckOutScreen = ({ navigation }: any) => {
   const [step, setStep] = useState<Step>("primer");
   const [currentTime, setCurrentTime] = useState("");
-  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [address, setAddress] = useState("Locating…");
   const [taskSummary, setTaskSummary] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
@@ -54,41 +48,6 @@ export const CheckOutScreen = ({ navigation }: any) => {
     return () => clearInterval(interval);
   }, []);
 
-  const getAccuracyColor = (accuracy: number) => {
-    if (accuracy <= 20) return "#059669";
-    if (accuracy <= 50) return "#D97706";
-    return "#E11D48";
-  };
-
-  const fetchCurrentLocation = async () => {
-    try {
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const { latitude: lat, longitude: lng, accuracy } = position.coords;
-      setLatitude(lat);
-      setLongitude(lng);
-      setGpsAccuracy(Math.round(accuracy ?? 999));
-      setAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-
-      try {
-        // Location.reverseGeocodeAsync uses the native OS geocoder, which isn't
-        // available on web — call the same free Nominatim API the backend uses
-        // so the address resolves consistently on every platform.
-        const resp = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-          { headers: { Accept: "application/json" } }
-        );
-        const geo = await resp.json();
-        if (geo?.display_name) setAddress(geo.display_name);
-      } catch {
-        // Reverse geocoding is best-effort — keep the coordinate fallback if it fails.
-      }
-    } catch {
-      showAlert("Could not get your location. Please enable GPS and retry.");
-    }
-  };
-
   const handleEnableAndContinue = async () => {
     if (isPreparing) return; // ignore rapid repeat taps while a request is in flight
     setIsPreparing(true);
@@ -99,18 +58,15 @@ export const CheckOutScreen = ({ navigation }: any) => {
         cameraGranted = result.granted;
       }
 
-      const locationStatus = await Location.requestForegroundPermissionsAsync();
-
-      if (!cameraGranted || locationStatus.status !== "granted") {
-        showAlert("Permissions Required", "Camera and Location permissions are both required to check out.");
+      if (!cameraGranted) {
+        showAlert("Permission Required", "Camera permission is required to check out.");
         return;
       }
 
-      await fetchCurrentLocation();
       setStep("capture");
     } catch (e: any) {
       showAlert(
-        "Could not enable camera/location",
+        "Could not enable camera",
         e?.message ?? "Please check your browser/app permissions and try again."
       );
     } finally {
@@ -135,18 +91,19 @@ export const CheckOutScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleConfirmCheckOut = async () => {
+  const handleConfirmCheckOut = () => {
     if (isSubmitting) return; // ignore rapid repeat taps while a request is in flight
-    if (!photoPath || latitude === null || longitude === null || gpsAccuracy === null) {
-      showAlert("Missing photo or location data — please retake.");
+    if (!photoPath) {
+      showAlert("Missing photo — please retake.");
       return;
     }
+    showConfirm("Check Out?", "Are you sure you want to check out?", submitCheckOut);
+  };
+
+  const submitCheckOut = async () => {
     setIsSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append("latitude", String(latitude));
-      formData.append("longitude", String(longitude));
-      formData.append("gps_accuracy", String(gpsAccuracy));
       formData.append("device_model", Platform.select({ ios: "iPhone", default: "Android Device" }));
       formData.append("os_version", `${Platform.OS} ${Platform.Version}`);
       formData.append("app_version", "1.0.0");
@@ -199,17 +156,16 @@ export const CheckOutScreen = ({ navigation }: any) => {
       {step === "primer" && (
         <FadeInView style={styles.primerContainer} translateY={12}>
           <View style={styles.iconCircle}>
-            <Text style={styles.iconCircleText}>📍📷</Text>
+            <Text style={styles.iconCircleText}>📷</Text>
           </View>
-          <Text style={styles.primerTitle}>Camera & Location Required</Text>
+          <Text style={styles.primerTitle}>Camera Required</Text>
           <Text style={styles.primerText}>
-            AttendHR uses selfie verification and live GPS coordinates to confirm your check-out, and asks what you worked on today.
+            AttendHR uses selfie verification to confirm your check-out, and asks what you worked on today.
           </Text>
 
           <View style={styles.primerCard}>
             <Text style={styles.primerCardHeader}>Why we ask:</Text>
             <Text style={styles.primerCardItem}>• Selfie photo verifies identity</Text>
-            <Text style={styles.primerCardItem}>• GPS confirms on-site / WFH location</Text>
             <Text style={styles.primerCardItem}>• Task summary helps your manager track daily work</Text>
           </View>
 
@@ -224,13 +180,6 @@ export const CheckOutScreen = ({ navigation }: any) => {
               <Text style={styles.primaryButtonText}>Enable & Continue</Text>
             )}
           </TouchableOpacity>
-
-          {isPreparing && (
-            <View style={styles.preparingRow}>
-              <PulsingDot color={colors.primary} size={6} />
-              <Text style={styles.preparingText}>Fetching camera & GPS…</Text>
-            </View>
-          )}
         </FadeInView>
       )}
 
@@ -248,19 +197,8 @@ export const CheckOutScreen = ({ navigation }: any) => {
             <View style={styles.faceGuide} />
             <Text style={styles.faceGuideLabel}>Position face inside circle</Text>
 
-            <View style={[styles.gpsChip, { borderColor: getAccuracyColor(gpsAccuracy ?? 999) }]}>
-              <View style={[styles.gpsDot, { backgroundColor: getAccuracyColor(gpsAccuracy ?? 999) }]} />
-              <Text style={styles.gpsChipText}>
-                GPS Accuracy: {gpsAccuracy ?? "—"}m {(gpsAccuracy ?? 0) > 50 ? "(Move to open area)" : ""}
-              </Text>
-            </View>
-
-            <View style={styles.locationOverlay}>
+            <View style={styles.clockOverlay}>
               <Text style={styles.clockText}>{currentTime}</Text>
-              <View style={styles.addressRow}>
-                {address === "Locating…" && <PulsingDot color={colors.accent} size={5} />}
-                <Text style={styles.addressText}>📍 {address}</Text>
-              </View>
             </View>
           </View>
 
@@ -277,7 +215,7 @@ export const CheckOutScreen = ({ navigation }: any) => {
       )}
 
       {/* ---------------------------------------------------------------- */}
-      {/* STEP 3: Review Screen (photo + location + task summary) */}
+      {/* STEP 3: Review Screen (photo + task summary) */}
       {/* ---------------------------------------------------------------- */}
       {step === "review" && (
         <FadeInView style={{ flex: 1 }} translateY={12}>
@@ -303,8 +241,6 @@ export const CheckOutScreen = ({ navigation }: any) => {
 
               <View style={styles.reviewDetails}>
                 <Text style={styles.detailTime}>⏰ Check-Out Time: {currentTime}</Text>
-                <Text style={styles.detailAddress}>📍 Location: {address}</Text>
-                <Text style={styles.detailGps}>Accuracy: {gpsAccuracy ?? "—"}m (Verified)</Text>
               </View>
             </View>
 
@@ -440,16 +376,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  preparingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: spacing.md,
-  },
-  preparingText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-  },
   secondaryButton: {
     backgroundColor: "transparent",
     borderColor: colors.border,
@@ -491,29 +417,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.badge,
   },
-  gpsChip: {
-    position: "absolute",
-    top: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.7)",
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.badge,
-  },
-  gpsDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  gpsChipText: {
-    color: "#FFF",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  locationOverlay: {
+  clockOverlay: {
     position: "absolute",
     bottom: 30,
     alignItems: "center",
@@ -526,16 +430,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 24,
     fontWeight: "700",
-  },
-  addressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 2,
-  },
-  addressText: {
-    color: colors.textSecondary,
-    fontSize: 12,
   },
   controlsBar: {
     height: 100,
@@ -595,15 +489,6 @@ const styles = StyleSheet.create({
   detailTime: {
     color: colors.textPrimary,
     fontSize: 15,
-    fontWeight: "600",
-  },
-  detailAddress: {
-    color: colors.textSecondary,
-    fontSize: 13,
-  },
-  detailGps: {
-    color: "#059669",
-    fontSize: 12,
     fontWeight: "600",
   },
   taskCard: {

@@ -81,6 +81,11 @@ PERMISSION_MATRIX: Dict[Tuple[str, str], FrozenSet[str]] = {
     # Leave — final approval (HR, Admin only — not Manager)
     ("approve_final", "leave"):     frozenset([ROLE_ADMIN, ROLE_HR]),
 
+    # WFH — apply own (everyone), view/approve (Admin, HR, Manager — single-stage)
+    ("apply",  "own_wfh"):          frozenset([ROLE_ADMIN, ROLE_HR, ROLE_MANAGER, ROLE_EMPLOYEE]),
+    ("view",   "wfh"):              frozenset([ROLE_ADMIN, ROLE_HR, ROLE_MANAGER]),
+    ("approve", "wfh"):             frozenset([ROLE_ADMIN, ROLE_HR, ROLE_MANAGER]),
+
     # Audit logs
     ("view",   "audit_log"):        frozenset([ROLE_ADMIN, ROLE_HR]),
 
