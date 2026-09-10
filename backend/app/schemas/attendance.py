@@ -112,3 +112,11 @@ class RegularizeAttendanceRequest(BaseModel):
     check_in_time: Optional[time] = None
     check_out_time: Optional[time] = None
     remarks: str = Field(..., min_length=3)
+
+
+class CheckInWindowResponse(BaseModel):
+    # Today's "check in by" deadline (shift start + grace period) for the
+    # current employee, or null when a check-in can never be Late today
+    # (no shift assigned, or today is a holiday). Lets the client decide
+    # whether to surface the "reason for late check-in" field at all.
+    deadline: Optional[time] = None

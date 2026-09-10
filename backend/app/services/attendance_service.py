@@ -300,6 +300,37 @@ class AttendanceService:
         return AttendanceResponse.model_validate(attendance)
 
     # ------------------------------------------------------------------
+    # Late check-in window
+    # ------------------------------------------------------------------
+
+    def get_check_in_window(self, employee_id: int) -> dict:
+        """
+        Today's "check in by" deadline for this employee, or None when a
+        check-in can never be Late today (no shift, or today is a holiday) —
+        mirrors the same rule `_compute_check_in_status` uses to decide LATE.
+        """
+        employee = self.employee_repo.get(employee_id)
+        if not employee or not employee.shift_id:
+            return {"deadline": None}
+
+        today = today_ist()
+        holiday = (
+            self.db.query(Holiday)
+            .filter(Holiday.company_id == employee.company_id, Holiday.date == today)
+            .first()
+        )
+        if holiday:
+            return {"deadline": None}
+
+        rules = self.rules_repo.get_by_company(employee.company_id)
+        grace_period_mins = rules.grace_period_minutes if rules else 15
+
+        shift = employee.shift
+        dummy_date = date(2000, 1, 1)
+        deadline_dt = datetime.combine(dummy_date, shift.start_time) + timedelta(minutes=grace_period_mins)
+        return {"deadline": deadline_dt.time()}
+
+    # ------------------------------------------------------------------
     # Query & Regularization
     # ------------------------------------------------------------------
 
