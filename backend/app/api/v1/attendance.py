@@ -12,7 +12,7 @@ from app.services.attendance_service import AttendanceService
 from app.utils.image import validate_image_upload
 from app.schemas.attendance import (
     AttendanceResponse, AttendanceTodaySummary, CheckInMetaData,
-    CheckOutMetaData, RegularizeAttendanceRequest,
+    CheckOutMetaData, RegularizeAttendanceRequest, CheckInWindowResponse,
 )
 from app.schemas.common import APIResponse, PaginatedResponse
 
@@ -128,6 +128,19 @@ def my_history(
 ):
     svc = AttendanceService(db)
     return svc.get_my_history(employee_id=current_user.employee_id, page=page, page_size=page_size)
+
+
+@router.get(
+    "/check-in-window",
+    response_model=APIResponse[CheckInWindowResponse],
+    summary="Get today's late check-in deadline for the current employee",
+)
+def check_in_window(
+    current_user: User = Depends(get_current_active_employee),
+    db: Session = Depends(get_db),
+):
+    svc = AttendanceService(db)
+    return APIResponse(data=svc.get_check_in_window(current_user.employee_id))
 
 
 @router.get(

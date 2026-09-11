@@ -28,6 +28,10 @@ export const CheckInScreen = ({ navigation }: any) => {
   const [step, setStep] = useState<Step>("primer");
   const [currentTime, setCurrentTime] = useState("");
   const [lateReason, setLateReason] = useState("");
+  // "HH:MM:SS" (24-hour) check-in deadline for today, or null when a
+  // check-in can never be marked Late today (no shift / holiday) — fetched
+  // once so the "reason for late check-in" field only shows when relevant.
+  const [lateDeadline, setLateDeadline] = useState<string | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -53,6 +57,22 @@ export const CheckInScreen = ({ navigation }: any) => {
     const interval = setInterval(updateClock, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch today's late-check-in deadline once, so we know whether to show
+  // the "reason for late check-in" field at all.
+  useEffect(() => {
+    apiClient
+      .get("/attendance/check-in-window")
+      .then(({ data }) => setLateDeadline(data?.deadline ?? null))
+      .catch(() => setLateDeadline(null));
+  }, []);
+
+  const isPastLateDeadline = () => {
+    if (!lateDeadline) return false;
+    const now = new Date();
+    const nowStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    return nowStr > lateDeadline;
+  };
 
   const getAccuracyColor = (accuracy: number) => {
     if (accuracy <= 20) return "#059669"; // Green
@@ -313,6 +333,7 @@ export const CheckInScreen = ({ navigation }: any) => {
               </View>
             </View>
 
+            {isPastLateDeadline() && (
             <View style={styles.taskCard}>
               <Text style={styles.taskLabel}>Running late? Tell us why</Text>
               <TextInput
@@ -329,6 +350,7 @@ export const CheckInScreen = ({ navigation }: any) => {
                 Optional. If your check-in is marked Late, this reason is shown to your admin — they'll decide whether to keep it Late or mark you Present.
               </Text>
             </View>
+            )}
 
             <View style={styles.actionRow}>
               <TouchableOpacity
