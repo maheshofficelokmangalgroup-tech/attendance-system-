@@ -157,4 +157,7 @@ def cancel_leave(
     db: Session = Depends(get_db),
 ):
     svc = LeaveService(db)
-    return APIResponse(data=svc.cancel_leave(leave_id=id, employee_id=current_user.employee_id), message="Leave request cancelled")
+    return APIResponse(
+        data=svc.cancel_leave(leave_id=id, employee_id=current_user.employee_id, actor_user_id=current_user.id),
+        message="Leave request cancelled",
+    )

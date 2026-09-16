@@ -16,7 +16,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { colors, radius, spacing, shadows } from "../../theme/tokens";
 import apiClient from "../../api/client";
-import { showAlert } from "../../utils/alert";
+import { showAlert, showConfirm } from "../../utils/alert";
 import { FadeInView } from "../../components/FadeInView";
 import { BounceInView } from "../../components/BounceInView";
 import { PulsingDot } from "../../components/PulsingDot";
@@ -56,6 +56,21 @@ export const CheckInScreen = ({ navigation }: any) => {
     updateClock();
     const interval = setInterval(updateClock, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // On a Sunday, confirm the employee is actually meant to be on duty before
+  // letting them into the camera/location flow at all — declining sends them
+  // straight back without creating any check-in for the day.
+  useEffect(() => {
+    if (new Date().getDay() === 0) {
+      showConfirm(
+        "Sunday — On Duty?",
+        "Today is Sunday. Are you on duty today?",
+        () => {},
+        () => navigation.goBack()
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch today's late-check-in deadline once, so we know whether to show

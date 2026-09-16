@@ -233,8 +233,10 @@ class ReportService:
                     code = status_code_map.get(att_map[day_num], "A")
                 elif day_num in holiday_days:
                     code = "HO"
-                elif current_date.weekday() >= 5:  # Sat/Sun — matches the
-                    code = "WO"                     # weekend convention used
+                elif current_date.weekday() == 6:  # Sunday, no check-in — called
+                    code = "Sunday"                 # out separately from Saturday
+                elif current_date.weekday() == 5:  # Saturday — regular weekly off
+                    code = "WO"
                 else:                                # elsewhere (seed data, Excel export)
                     code = "A"
                 day_status_map[day_num] = code

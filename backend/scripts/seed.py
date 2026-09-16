@@ -4,7 +4,7 @@ Seed script — run once on a fresh DB to populate:
   - Sample Company + Department + Designation + Shift
   - Admin user account
   - Default AttendanceRules
-  - Default Leave Types (PL, SL, CL, CompOff, LWP)
+  - Default Leave Types (PL, SL, CL, CompOff, PWL)
 
 Usage:
     cd backend/
@@ -187,14 +187,15 @@ def seed():
         # Leave Types
         # ------------------------------------------------------------------
         leave_type_defs = [
-            ("Privilege Leave", "PL", 12, AccrualTypeEnum.MONTHLY, True, 10, True),
-            ("Sick Leave", "SL", 6, AccrualTypeEnum.UPFRONT, False, 0, True),
-            ("Casual Leave", "CL", 6, AccrualTypeEnum.UPFRONT, False, 0, True),
-            ("Compensatory Off", "COMP", 0, AccrualTypeEnum.UPFRONT, False, 0, False),
-            ("Leave Without Pay", "LWP", 0, AccrualTypeEnum.UPFRONT, False, 0, False),
+            # name, code, days/yr, accrual, carry_fwd, max_carry, max_consecutive_days, is_paid
+            ("Privilege Leave", "PL", 12, AccrualTypeEnum.MONTHLY, True, 10, None, True),
+            ("Sick Leave", "SL", 6, AccrualTypeEnum.UPFRONT, False, 0, 3, True),
+            ("Casual Leave", "CL", 6, AccrualTypeEnum.UPFRONT, False, 0, 3, True),
+            ("Compensatory Off", "COMP", 0, AccrualTypeEnum.UPFRONT, False, 0, None, False),
+            ("Leave Without Pay", "PWL", 0, AccrualTypeEnum.UPFRONT, False, 0, None, False),
         ]
         leave_types = {}
-        for name, code, days, accrual, carry, max_carry, is_paid in leave_type_defs:
+        for name, code, days, accrual, carry, max_carry, max_consecutive, is_paid in leave_type_defs:
             lt = db.query(LeaveType).filter_by(company_id=company.id, code=code).first()
             if not lt:
                 lt = LeaveType(
@@ -205,6 +206,7 @@ def seed():
                     accrual_type=accrual,
                     carry_forward=carry,
                     max_carry_forward_days=max_carry,
+                    max_consecutive_days=max_consecutive,
                     is_paid=is_paid,
                 )
                 db.add(lt)
