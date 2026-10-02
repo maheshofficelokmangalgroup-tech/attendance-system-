@@ -22,6 +22,7 @@ from app.repository.audit_repo import AuditRepository
 from app.schemas.leave import (
     ApplyLeaveRequest, LeaveResponse, LeaveBalanceResponse,
     TeamCalendarLeaveItem, LeaveEmployeeSummary, LeaveTypeResponse,
+    LeaveBalanceAdjustRequest,
 )
 from app.schemas.common import PaginatedResponse
 from app.utils.timezone import today_ist
@@ -68,6 +69,48 @@ class LeaveService:
                 res.max_consecutive_days = b.leave_type.max_consecutive_days
             results.append(res)
         return results
+
+    def adjust_balance(
+        self,
+        employee_id: int,
+        leave_type_id: int,
+        payload: LeaveBalanceAdjustRequest,
+        actor_user_id: int,
+    ) -> LeaveBalanceResponse:
+        """
+        Admin/HR correction to a balance number only — no leave application
+        record is created, changed, or touched, so nothing shows up in any
+        leave request list. Used for one-off corrections (e.g. crediting a
+        day back without reversing the approved leave that used it).
+        """
+        year = payload.year or today_ist().year
+        lt = self.db.get(LeaveType, leave_type_id)
+        if not lt or lt.company_id != self.employee_repo.get(employee_id).company_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid leave type")
+
+        bal = self.repo.get_or_create_balance(employee_id, leave_type_id, year, float(lt.days_per_year))
+        before = {"used_days": float(bal.used_days), "balance_days": float(bal.balance_days)}
+
+        bal.used_days = max(0.0, float(bal.used_days) - payload.delta_days)
+        bal.balance_days = float(bal.total_days) - float(bal.used_days)
+
+        self.audit_repo.log(
+            user_id=actor_user_id,
+            action="leave_balance_adjusted",
+            entity_type="LeaveBalance",
+            entity_id=bal.id,
+            before_data=before,
+            after_data={"used_days": float(bal.used_days), "balance_days": float(bal.balance_days), "delta_days": payload.delta_days, "reason": payload.reason},
+        )
+
+        self.db.commit()
+        self.db.refresh(bal)
+        res = LeaveBalanceResponse.model_validate(bal)
+        res.leave_type_name = lt.name
+        res.leave_type_code = lt.code
+        res.is_paid = lt.is_paid
+        res.max_consecutive_days = lt.max_consecutive_days
+        return res
 
     # ------------------------------------------------------------------
     # Apply Leave

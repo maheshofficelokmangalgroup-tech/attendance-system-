@@ -11,7 +11,7 @@ from app.models.leave import LeaveStatusEnum
 from app.services.leave_service import LeaveService
 from app.schemas.leave import (
     ApplyLeaveRequest, LeaveApprovalActionRequest, LeaveResponse,
-    LeaveBalanceResponse, TeamCalendarLeaveItem,
+    LeaveBalanceResponse, TeamCalendarLeaveItem, LeaveBalanceAdjustRequest,
 )
 from app.schemas.common import APIResponse, PaginatedResponse
 
@@ -37,6 +37,22 @@ def my_balances(
 ):
     svc = LeaveService(db)
     return APIResponse(data=svc.get_my_balances(employee_id=current_user.employee_id, year=year))
+
+
+@router.post(
+    "/balances/{employee_id}/{leave_type_id}/adjust",
+    response_model=APIResponse[LeaveBalanceResponse],
+    summary="Admin/HR correction to a balance number only — no leave record touched",
+)
+def adjust_balance(
+    employee_id: int,
+    leave_type_id: int,
+    payload: LeaveBalanceAdjustRequest,
+    current_user: User = Depends(require_permission("approve_final", "leave")),
+    db: Session = Depends(get_db),
+):
+    svc = LeaveService(db)
+    return APIResponse(data=svc.adjust_balance(employee_id, leave_type_id, payload, actor_user_id=current_user.id))
 
 
 @router.get("/my-history", response_model=PaginatedResponse[LeaveResponse], summary="Get employee leave application history")

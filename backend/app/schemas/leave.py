@@ -94,6 +94,15 @@ class LeaveApprovalActionRequest(BaseModel):
     remarks: Optional[str] = None
 
 
+class LeaveBalanceAdjustRequest(BaseModel):
+    # Positive = credit days back to the employee (used_days decreases);
+    # negative = deduct days (used_days increases). Does not touch any
+    # leave application record — balance only.
+    delta_days: float
+    year: Optional[int] = None
+    reason: str = Field(..., min_length=3)
+
+
 class LeaveBalanceResponse(BaseModel):
     id: int
     employee_id: int
