@@ -371,16 +371,29 @@ class LeaveService:
         self.db.commit()
         return self._build_leave_response(leave.id)
 
-    def cancel_leave(self, leave_id: int, employee_id: int, actor_user_id: Optional[int] = None) -> LeaveResponse:
+    def cancel_leave(
+        self,
+        leave_id: int,
+        employee_id: int,
+        actor_user_id: Optional[int] = None,
+        allow_any_employee: bool = False,
+    ) -> LeaveResponse:
+        """
+        `allow_any_employee=True` is for Admin/HR reversing an employee's
+        leave on their behalf (e.g. correcting an approval) — the normal
+        employee self-service path still only ever cancels its own leave.
+        """
         leave = self.repo.get_locked(leave_id)
         if not leave:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave request not found")
 
-        if leave.employee_id != employee_id:
+        if not allow_any_employee and leave.employee_id != employee_id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only cancel your own leave requests")
 
         if leave.status in (LeaveStatusEnum.CANCELLED, LeaveStatusEnum.REJECTED):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Leave is already {leave.status.value}")
+
+        was_approved = leave.status == LeaveStatusEnum.APPROVED
 
         # Balance was reserved at apply time regardless of stage — always
         # release it back on cancel.
@@ -391,13 +404,24 @@ class LeaveService:
             bal.balance_days = float(bal.total_days) - float(bal.used_days)
 
         # Attendance records only exist once approved — clear them too.
-        if leave.status == LeaveStatusEnum.APPROVED:
+        if was_approved:
             self.db.query(Attendance).filter(Attendance.leave_id == leave.id).delete()
 
         leave.status = LeaveStatusEnum.CANCELLED
+
+        if allow_any_employee and leave.employee and leave.employee.user:
+            self.db.add(Notification(
+                user_id=leave.employee.user.id,
+                employee_id=leave.employee.id,
+                title="Leave Request Cancelled",
+                body=f"Your {'approved ' if was_approved else ''}leave request ({leave.from_date} to {leave.to_date}) was cancelled by admin/HR.",
+                type="leave_cancelled",
+                meta={"leave_id": leave.id},
+            ))
+
         self.audit_repo.log(
             user_id=actor_user_id,
-            action="leave_cancelled",
+            action="leave_cancelled" if not allow_any_employee else "leave_cancelled_by_admin",
             entity_type="Leave",
             entity_id=leave.id,
         )

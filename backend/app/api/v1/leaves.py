@@ -161,3 +161,16 @@ def cancel_leave(
         data=svc.cancel_leave(leave_id=id, employee_id=current_user.employee_id, actor_user_id=current_user.id),
         message="Leave request cancelled",
     )
+
+
+@router.post("/{id}/admin-cancel", response_model=APIResponse[LeaveResponse], summary="Cancel any employee's leave (Admin/HR)")
+def admin_cancel_leave(
+    id: int,
+    current_user: User = Depends(require_permission("approve_final", "leave")),
+    db: Session = Depends(get_db),
+):
+    svc = LeaveService(db)
+    return APIResponse(
+        data=svc.cancel_leave(leave_id=id, employee_id=-1, actor_user_id=current_user.id, allow_any_employee=True),
+        message="Leave request cancelled",
+    )
