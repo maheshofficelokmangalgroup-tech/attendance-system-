@@ -71,6 +71,9 @@ class LeaveType(Base):
     )
     carry_forward: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     max_carry_forward_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Cap on consecutive days a single request against this type may span.
+    # Null = no cap (e.g. unpaid leave, which has no fixed annual quota to protect).
+    max_consecutive_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_paid: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

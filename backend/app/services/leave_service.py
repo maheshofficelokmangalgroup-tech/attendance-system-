@@ -64,6 +64,8 @@ class LeaveService:
             if b.leave_type:
                 res.leave_type_name = b.leave_type.name
                 res.leave_type_code = b.leave_type.code
+                res.is_paid = b.leave_type.is_paid
+                res.max_consecutive_days = b.leave_type.max_consecutive_days
             results.append(res)
         return results
 
@@ -82,6 +84,24 @@ class LeaveService:
         if not employee:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
+        # Sundays inside the requested range are never charged as leave — the
+        # employee wasn't going to work that day regardless. Uses the real
+        # calendar (date.weekday() == 6) so it always matches the actual date,
+        # not a hardcoded list.
+        sundays_in_range = 0
+        _d = payload.from_date
+        while _d <= payload.to_date:
+            if _d.weekday() == 6:
+                sundays_in_range += 1
+            _d += timedelta(days=1)
+
+        effective_total_days = max(0.0, payload.total_days - sundays_in_range)
+        if effective_total_days <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This date range only covers Sunday(s) — there are no leave days to apply for.",
+            )
+
         # 1. Overlap check
         overlap = self.repo.check_overlapping_leave(employee_id, payload.from_date, payload.to_date)
         if overlap:
@@ -95,27 +115,52 @@ class LeaveService:
         if not lt or not lt.is_active:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid leave type")
 
+        # Max-consecutive-days cap (e.g. CL/SL capped at 3 days per request) —
+        # checked against the explicitly selected type, before any balance
+        # fallback, so the employee gets a clear reason instead of a silent
+        # redirect to Leave Without Pay for what's actually a span violation.
+        if lt.max_consecutive_days is not None:
+            day_span = (payload.to_date - payload.from_date).days + 1
+            if day_span > lt.max_consecutive_days:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{lt.name} can only be requested for up to {lt.max_consecutive_days} consecutive day(s) at a time. You selected {day_span} day(s).",
+                )
+
         year = payload.from_date.year
         balance_entry = self.repo.get_or_create_balance(employee_id, lt.id, year, float(lt.days_per_year))
 
         # Check balance if leave type is paid & requires balance
         effective_leave_type = lt
         used_lwp_fallback = False
-        if lt.is_paid and float(balance_entry.balance_days) < payload.total_days:
-            # Fall back to LWP: redirect the request onto the LWP leave type
+        if lt.is_paid and float(balance_entry.balance_days) < effective_total_days:
+            # Fall back to PWL: redirect the request onto the unpaid leave type
             # instead of creating it against the (insufficient) original type.
             lwp_type = (
                 self.db.query(LeaveType)
-                .filter(LeaveType.company_id == employee.company_id, LeaveType.code == "LWP")
+                .filter(LeaveType.company_id == employee.company_id, LeaveType.code == "PWL")
                 .first()
             )
             if not lwp_type:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Insufficient {lt.name} balance. Available: {balance_entry.balance_days} days, Requested: {payload.total_days} days.",
+                    detail=f"Insufficient {lt.name} balance. Available: {balance_entry.balance_days} days, Requested: {effective_total_days} days.",
                 )
             effective_leave_type = lwp_type
             used_lwp_fallback = True
+
+        # Reserve balance immediately at apply time (not only on final
+        # approval) — otherwise several simultaneous pending requests against
+        # the same type would each see the full un-reserved balance and could
+        # collectively be approved past the annual quota. The employee also
+        # sees their remaining balance drop the moment they apply, before any
+        # approval happens.
+        effective_balance = (
+            balance_entry if effective_leave_type.id == lt.id
+            else self.repo.get_or_create_balance(employee_id, effective_leave_type.id, year, float(effective_leave_type.days_per_year))
+        )
+        effective_balance.used_days = float(effective_balance.used_days) + float(effective_total_days)
+        effective_balance.balance_days = max(0.0, float(effective_balance.total_days) - float(effective_balance.used_days))
 
         # 3. Create Leave record
         leave = Leave(
@@ -123,7 +168,7 @@ class LeaveService:
             leave_type_id=effective_leave_type.id,
             from_date=payload.from_date,
             to_date=payload.to_date,
-            total_days=payload.total_days,
+            total_days=effective_total_days,
             reason=payload.reason,
             status=LeaveStatusEnum.PENDING,
             applied_by=employee_id,
@@ -137,11 +182,12 @@ class LeaveService:
         # 4. Notify Manager if assigned
         if employee.manager and employee.manager.user:
             lwp_note = " (auto-converted to Leave Without Pay — insufficient balance)" if used_lwp_fallback else ""
+            sunday_note = f" — {sundays_in_range} Sunday(s) in range excluded, not charged" if sundays_in_range else ""
             noti = Notification(
                 user_id=employee.manager.user.id,
                 employee_id=employee.manager.id,
                 title="New Leave Request",
-                body=f"{employee.full_name} applied for {payload.total_days} day(s) {effective_leave_type.name}{lwp_note} ({payload.from_date} to {payload.to_date}).",
+                body=f"{employee.full_name} applied for {effective_total_days} day(s) {effective_leave_type.name}{lwp_note} ({payload.from_date} to {payload.to_date}){sunday_note}.",
                 type="leave_applied",
                 meta={"leave_id": leave.id},
             )
@@ -152,7 +198,7 @@ class LeaveService:
             action="leave_applied",
             entity_type="Leave",
             entity_id=leave.id,
-            after_data={"from_date": str(payload.from_date), "to_date": str(payload.to_date), "days": payload.total_days},
+            after_data={"from_date": str(payload.from_date), "to_date": str(payload.to_date), "days": effective_total_days, "sundays_excluded": sundays_in_range},
         )
 
         self.db.commit()
@@ -230,16 +276,17 @@ class LeaveService:
         leave.final_approval_at = datetime.now(timezone.utc)
         leave.status = LeaveStatusEnum.APPROVED
 
-        # Deduct balance
-        year = leave.from_date.year
-        bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
-        if bal:
-            bal.used_days = float(bal.used_days) + float(leave.total_days)
-            bal.balance_days = max(0.0, float(bal.total_days) - float(bal.used_days))
+        # Balance was already reserved at apply time — nothing to deduct here.
 
-        # Create/Update Attendance records for dates in range -> status ON_LEAVE
+        # Create/Update Attendance records for dates in range -> status ON_LEAVE.
+        # Sundays inside the range are skipped entirely (not charged, per
+        # apply_leave()) — leave any existing row alone and don't create one,
+        # so the day falls through to the normal Sunday reporting logic.
         curr = leave.from_date
         while curr <= leave.to_date:
+            if curr.weekday() == 6:
+                curr += timedelta(days=1)
+                continue
             att = (
                 self.db.query(Attendance)
                 .filter(Attendance.employee_id == leave.employee_id, Attendance.date == curr)
@@ -295,6 +342,13 @@ class LeaveService:
         leave.status = LeaveStatusEnum.REJECTED
         leave.rejection_reason = rejection_reason
 
+        # Balance was reserved at apply time — release it back.
+        year = leave.from_date.year
+        bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
+        if bal:
+            bal.used_days = max(0.0, float(bal.used_days) - float(leave.total_days))
+            bal.balance_days = float(bal.total_days) - float(bal.used_days)
+
         # Notify Employee
         if leave.employee and leave.employee.user:
             self.db.add(Notification(
@@ -317,7 +371,7 @@ class LeaveService:
         self.db.commit()
         return self._build_leave_response(leave.id)
 
-    def cancel_leave(self, leave_id: int, employee_id: int) -> LeaveResponse:
+    def cancel_leave(self, leave_id: int, employee_id: int, actor_user_id: Optional[int] = None) -> LeaveResponse:
         leave = self.repo.get_locked(leave_id)
         if not leave:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave request not found")
@@ -328,20 +382,21 @@ class LeaveService:
         if leave.status in (LeaveStatusEnum.CANCELLED, LeaveStatusEnum.REJECTED):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Leave is already {leave.status.value}")
 
-        # If it was approved, restore balance & clear attendance records
-        if leave.status == LeaveStatusEnum.APPROVED:
-            year = leave.from_date.year
-            bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
-            if bal:
-                bal.used_days = max(0.0, float(bal.used_days) - float(leave.total_days))
-                bal.balance_days = float(bal.total_days) - float(bal.used_days)
+        # Balance was reserved at apply time regardless of stage — always
+        # release it back on cancel.
+        year = leave.from_date.year
+        bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
+        if bal:
+            bal.used_days = max(0.0, float(bal.used_days) - float(leave.total_days))
+            bal.balance_days = float(bal.total_days) - float(bal.used_days)
 
-            # Clear linked attendance records
+        # Attendance records only exist once approved — clear them too.
+        if leave.status == LeaveStatusEnum.APPROVED:
             self.db.query(Attendance).filter(Attendance.leave_id == leave.id).delete()
 
         leave.status = LeaveStatusEnum.CANCELLED
         self.audit_repo.log(
-            user_id=employee_id,
+            user_id=actor_user_id,
             action="leave_cancelled",
             entity_type="Leave",
             entity_id=leave.id,
@@ -433,6 +488,11 @@ class LeaveService:
             )
         if leave.leave_type:
             resp.leave_type = LeaveTypeResponse.model_validate(leave.leave_type)
+
+        bal = self.repo.get_balance_for_type(leave.employee_id, leave.leave_type_id, leave.from_date.year)
+        if bal:
+            resp.applicant_balance_days = float(bal.balance_days)
+            resp.applicant_used_days = float(bal.used_days)
 
         resp.status = leave.status.value
         resp.first_approval_status = leave.first_approval_status.value

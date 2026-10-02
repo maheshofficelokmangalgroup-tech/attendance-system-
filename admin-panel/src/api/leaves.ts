@@ -25,6 +25,9 @@ export interface LeaveItem {
   total_days: number;
   reason?: string;
   status: string;
+  // Applicant's remaining/used balance for this leave type, for approver context.
+  applicant_balance_days?: number;
+  applicant_used_days?: number;
   applied_by: number;
   first_approver_id?: number;
   first_approval_status: string;

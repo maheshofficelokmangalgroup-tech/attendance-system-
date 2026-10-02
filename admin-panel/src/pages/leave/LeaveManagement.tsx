@@ -367,10 +367,26 @@ const LeaveManagement: React.FC = () => {
                       <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-primary)", background: "rgba(79,70,229,0.1)", padding: "2px 8px", borderRadius: "4px" }}>
                         {item.leave_type?.code ?? "PL"}
                       </span>
+                      <span
+                        style={{
+                          fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px",
+                          color: item.leave_type?.is_paid === false ? "#D97706" : "#059669",
+                          background: item.leave_type?.is_paid === false ? "rgba(217,119,6,0.1)" : "rgba(5,150,105,0.1)",
+                        }}
+                      >
+                        {item.leave_type?.is_paid === false ? "Unpaid" : "Paid"}
+                      </span>
                     </div>
                     <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", marginTop: "2px" }}>
                       {item.from_date} to {item.to_date} · <strong>{item.total_days} day(s)</strong>
                     </p>
+                    {item.applicant_balance_days != null && (
+                      <p style={{ fontSize: "12px", color: "var(--color-text-secondary)", marginTop: "2px" }}>
+                        {item.leave_type?.is_paid === false
+                          ? `Unpaid leave — ${item.applicant_used_days ?? 0} day(s) used this year so far`
+                          : `Balance: ${item.applicant_balance_days} of ${item.leave_type?.days_per_year ?? "—"} day(s) remaining (this request already reserved)`}
+                      </p>
+                    )}
                     {item.reason && (
                       <p style={{ fontSize: "12px", color: "var(--color-text-primary)", marginTop: "6px", fontStyle: "italic" }}>
                         "{item.reason}"

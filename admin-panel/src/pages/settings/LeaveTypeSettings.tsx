@@ -12,11 +12,12 @@ const schema = z.object({
   accrual_type: z.enum(["upfront", "monthly", "quarterly"]),
   carry_forward: z.boolean(),
   max_carry_forward_days: z.coerce.number().min(0),
+  max_consecutive_days: z.coerce.number().min(0).optional(),
   is_paid: z.boolean(),
 });
 type LTForm = z.infer<typeof schema>;
 
-interface LeaveType { id: number; name: string; code: string; days_per_year: number; is_paid: boolean; is_active: boolean; }
+interface LeaveType { id: number; name: string; code: string; days_per_year: number; max_consecutive_days: number | null; is_paid: boolean; is_active: boolean; }
 
 const LeaveTypeSettings: React.FC = () => {
   const [items, setItems] = useState<LeaveType[]>([]);
@@ -39,7 +40,8 @@ const LeaveTypeSettings: React.FC = () => {
   useEffect(() => { load(); }, []);
 
   const onSubmit = async (values: LTForm) => {
-    await apiClient.post("/leave-types", { ...values, company_id: 1 });
+    const max_consecutive_days = values.max_consecutive_days && values.max_consecutive_days > 0 ? values.max_consecutive_days : undefined;
+    await apiClient.post("/leave-types", { ...values, max_consecutive_days, company_id: 1 });
     reset(); setShowForm(false); load();
   };
 
@@ -58,7 +60,7 @@ const LeaveTypeSettings: React.FC = () => {
           </div>
           <div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700, color: "var(--color-text-primary)" }}>Leave Types</h1>
-            <p style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>PL, SL, CL, Comp-Off, LWP and custom types</p>
+            <p style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>PL, SL, CL, Comp-Off, PWL and custom types</p>
           </div>
         </div>
         <button className="btn-primary" onClick={() => setShowForm((v) => !v)}><Plus size={15} /> Add Type</button>
@@ -94,6 +96,10 @@ const LeaveTypeSettings: React.FC = () => {
                   <input className="input" type="number" {...register("max_carry_forward_days")} />
                 </div>
               )}
+              <div>
+                <label style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)", display: "block", marginBottom: "6px" }}>Max Consecutive Days (optional)</label>
+                <input className="input" type="number" min={1} placeholder="No cap" {...register("max_consecutive_days")} />
+              </div>
             </div>
             <div style={{ display: "flex", gap: "24px" }}>
               {[
@@ -131,6 +137,7 @@ const LeaveTypeSettings: React.FC = () => {
               <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)" }}>{item.name}</p>
               <p style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>
                 {item.days_per_year} days/year · {item.is_paid ? "Paid" : "Unpaid"}
+                {item.max_consecutive_days ? ` · max ${item.max_consecutive_days} consecutive days/request` : ""}
               </p>
             </div>
             <button onClick={() => remove(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#E11D48", padding: "4px" }}><Trash2 size={15} /></button>

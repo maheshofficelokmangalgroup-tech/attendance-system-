@@ -19,6 +19,7 @@ class LeaveTypeCreate(BaseModel):
     accrual_type: AccrualTypeEnum = AccrualTypeEnum.UPFRONT
     carry_forward: bool = False
     max_carry_forward_days: int = Field(default=0, ge=0)
+    max_consecutive_days: Optional[int] = Field(None, ge=1)
     is_paid: bool = True
 
 
@@ -28,6 +29,7 @@ class LeaveTypeUpdate(BaseModel):
     accrual_type: Optional[AccrualTypeEnum] = None
     carry_forward: Optional[bool] = None
     max_carry_forward_days: Optional[int] = Field(None, ge=0)
+    max_consecutive_days: Optional[int] = Field(None, ge=1)
     is_paid: Optional[bool] = None
     is_active: Optional[bool] = None
 
@@ -41,6 +43,7 @@ class LeaveTypeResponse(BaseModel):
     accrual_type: AccrualTypeEnum
     carry_forward: bool
     max_carry_forward_days: int
+    max_consecutive_days: Optional[int] = None
     is_paid: bool
     is_active: bool
     created_at: datetime
@@ -96,6 +99,8 @@ class LeaveBalanceResponse(BaseModel):
     leave_type_id: int
     leave_type_name: Optional[str] = None
     leave_type_code: Optional[str] = None
+    is_paid: Optional[bool] = None
+    max_consecutive_days: Optional[int] = None
     year: int
     total_days: float
     used_days: float
@@ -127,6 +132,10 @@ class LeaveResponse(BaseModel):
     total_days: float
     reason: Optional[str]
     status: str
+    # Applicant's remaining/used balance for this leave type, for the
+    # approver's context — populated at response-build time, not stored.
+    applicant_balance_days: Optional[float] = None
+    applicant_used_days: Optional[float] = None
     applied_by: int
     first_approver_id: Optional[int]
     first_approval_status: str
