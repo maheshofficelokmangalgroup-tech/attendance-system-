@@ -25,6 +25,7 @@ class LeaveTypeCreate(BaseModel):
 
 class LeaveTypeUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
+    code: Optional[str] = Field(None, min_length=1, max_length=20)
     days_per_year: Optional[int] = Field(None, ge=0, le=365)
     accrual_type: Optional[AccrualTypeEnum] = None
     carry_forward: Optional[bool] = None
