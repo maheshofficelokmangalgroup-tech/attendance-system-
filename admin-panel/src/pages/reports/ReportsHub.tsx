@@ -413,6 +413,8 @@ const ReportsHub: React.FC = () => {
                       ))}
                       <th style={{ padding: "8px", textAlign: "center" }}>P</th>
                       <th style={{ padding: "8px", textAlign: "center" }}>A</th>
+                      <th style={{ padding: "8px", textAlign: "center" }} title="Days marked Late this month">Late</th>
+                      <th style={{ padding: "8px", textAlign: "center" }} title="Deducted from Present for repeated late logins — every 3 late days costs half a day">Penalty</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -441,6 +443,10 @@ const ReportsHub: React.FC = () => {
                         })}
                         <td style={{ padding: "8px", textAlign: "center", fontWeight: 700, color: "#059669" }}>{row.total_present}</td>
                         <td style={{ padding: "8px", textAlign: "center", fontWeight: 700, color: "#E11D48" }}>{row.total_absent}</td>
+                        <td style={{ padding: "8px", textAlign: "center", color: "#D97706" }}>{row.late_count}</td>
+                        <td style={{ padding: "8px", textAlign: "center", fontWeight: row.late_penalty_days > 0 ? 700 : 400, color: row.late_penalty_days > 0 ? "#92400E" : "var(--color-text-secondary)", background: row.late_penalty_days > 0 ? "rgba(217,119,6,0.12)" : "transparent" }}>
+                          {row.late_penalty_days > 0 ? `-${row.late_penalty_days}` : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

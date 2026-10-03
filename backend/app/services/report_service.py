@@ -224,6 +224,7 @@ class ReportService:
             tot_p = 0.0
             tot_a = 0.0
             tot_l = 0.0
+            late_count = 0
 
             for day_num in range(1, total_days + 1):
                 current_date = date(year, month, day_num)
@@ -250,6 +251,19 @@ class ReportService:
                 elif code == "A":
                     tot_a += 1.0
 
+                if code == "L":
+                    late_count += 1
+
+            # Late-login penalty: every 3 late check-ins in the month costs
+            # half a day, converted from Present to Absent on the monthly
+            # total — 3 late -> 0.5, 6 late -> 1.0, 10 late -> 1.5, etc. The
+            # day-by-day cells above still show "L" for exactly which days
+            # were late; this only adjusts the month's Present/Absent totals.
+            late_penalty_days = (late_count // 3) * 0.5
+            if late_penalty_days > 0:
+                tot_p = max(0.0, tot_p - late_penalty_days)
+                tot_a += late_penalty_days
+
             rows.append(
                 MusterRollRow(
                     employee_id=emp.id,
@@ -260,6 +274,8 @@ class ReportService:
                     total_present=tot_p,
                     total_absent=tot_a,
                     total_leave=tot_l,
+                    late_count=late_count,
+                    late_penalty_days=late_penalty_days,
                 )
             )
 
@@ -538,9 +554,9 @@ class ReportService:
                 month=month if month is not None else today.month,
                 department_id=department_id,
             )
-            writer.writerow(["Emp Code", "Name"] + [str(d) for d in range(1, data.total_days + 1)] + ["Present", "Absent", "Leave"])
+            writer.writerow(["Emp Code", "Name"] + [str(d) for d in range(1, data.total_days + 1)] + ["Present", "Absent", "Leave", "Late Count", "Late Penalty"])
             for row in data.rows:
-                writer.writerow([row.employee_code, row.full_name] + [row.days.get(d, "—") for d in range(1, data.total_days + 1)] + [row.total_present, row.total_absent, row.total_leave])
+                writer.writerow([row.employee_code, row.full_name] + [row.days.get(d, "—") for d in range(1, data.total_days + 1)] + [row.total_present, row.total_absent, row.total_leave, row.late_count, row.late_penalty_days])
             return output.getvalue()
 
         rep = self.generate_report(report_type, company_id, from_date, to_date, department_id)
@@ -582,24 +598,36 @@ class ReportService:
                 department_id=department_id,
             )
             ws.title = f"Muster Roll {data.month}-{data.year}"
-            headers = ["Emp Code", "Name"] + [str(d) for d in range(1, data.total_days + 1)] + ["Present", "Absent", "Leave"]
+            headers = ["Emp Code", "Name"] + [str(d) for d in range(1, data.total_days + 1)] + ["Present", "Absent", "Leave", "Late Count", "Late Penalty"]
+            penalty_fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+            penalty_font = Font(color="92400E", bold=True)
             for col, h in enumerate(headers, start=1):
                 cell = ws.cell(row=1, column=col, value=h)
                 cell.font = header_font
                 cell.fill = primary_fill
                 cell.alignment = center
                 cell.border = thin_border
+            penalty_col = len(headers)  # "Late Penalty" is always the last column
             for r_idx, row in enumerate(data.rows, start=2):
-                values = [row.employee_code, row.full_name] + [row.days.get(d, "—") for d in range(1, data.total_days + 1)] + [row.total_present, row.total_absent, row.total_leave]
+                values = (
+                    [row.employee_code, row.full_name]
+                    + [row.days.get(d, "—") for d in range(1, data.total_days + 1)]
+                    + [row.total_present, row.total_absent, row.total_leave, row.late_count, row.late_penalty_days]
+                )
                 for col, v in enumerate(values, start=1):
                     cell = ws.cell(row=r_idx, column=col, value=v)
                     cell.border = thin_border
                     if col > 2:
                         cell.alignment = center
+                    if col == penalty_col and row.late_penalty_days > 0:
+                        cell.fill = penalty_fill
+                        cell.font = penalty_font
             ws.column_dimensions["A"].width = 12
             ws.column_dimensions["B"].width = 22
             for i in range(3, 3 + data.total_days):
                 ws.column_dimensions[get_column_letter(i)].width = 5
+            ws.column_dimensions[get_column_letter(penalty_col - 1)].width = 11
+            ws.column_dimensions[get_column_letter(penalty_col)].width = 12
             ws.freeze_panes = "C2"
         else:
             rep = self.generate_report(report_type, company_id, from_date, to_date, department_id)

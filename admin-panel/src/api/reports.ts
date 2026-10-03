@@ -50,6 +50,8 @@ export interface MusterRollRow {
   total_present: number;
   total_absent: number;
   total_leave: number;
+  late_count: number;
+  late_penalty_days: number;
 }
 
 export interface MusterRollData {

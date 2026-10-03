@@ -51,6 +51,8 @@ class MusterRollRow(BaseModel):
     total_present: float = 0.0
     total_absent: float = 0.0
     total_leave: float = 0.0
+    late_count: int = 0
+    late_penalty_days: float = 0.0
 
 
 class MusterRollReportResponse(BaseModel):
