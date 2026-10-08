@@ -159,6 +159,7 @@ class AttendanceRules(Base):
         nullable=False, unique=True, index=True
     )
     grace_period_minutes: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    grace_period_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     half_day_hours: Mapped[float] = mapped_column(Numeric(4, 2), default=4.0, nullable=False)
     full_day_hours: Mapped[float] = mapped_column(Numeric(4, 2), default=8.0, nullable=False)
     overtime_threshold_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)

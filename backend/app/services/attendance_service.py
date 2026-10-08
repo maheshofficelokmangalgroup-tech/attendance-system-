@@ -63,9 +63,11 @@ class AttendanceService:
         rules = self.rules_repo.get_by_company(employee.company_id)
         max_gps_accuracy = 50.0  # default 50 meters
         grace_period_mins = 15
+        grace_period_secs = 0
 
         if rules:
             grace_period_mins = rules.grace_period_minutes
+            grace_period_secs = rules.grace_period_seconds
 
         # 2. Validate GPS accuracy threshold
         if not validate_gps_accuracy(meta.gps_accuracy, max_allowed_meters=max_gps_accuracy):
@@ -110,7 +112,7 @@ class AttendanceService:
 
         # 6. Status Computation
         shift = employee.shift if employee.shift_id else None
-        initial_status = self._compute_check_in_status(current_time, shift, grace_period_mins, today, employee.company_id)
+        initial_status = self._compute_check_in_status(current_time, shift, grace_period_mins, grace_period_secs, today, employee.company_id)
 
         # 7. Persist Attendance Record
         if existing:
@@ -320,10 +322,11 @@ class AttendanceService:
 
         rules = self.rules_repo.get_by_company(employee.company_id)
         grace_period_mins = rules.grace_period_minutes if rules else 15
+        grace_period_secs = rules.grace_period_seconds if rules else 0
 
         shift = employee.shift
         dummy_date = date(2000, 1, 1)
-        deadline_dt = datetime.combine(dummy_date, shift.start_time) + timedelta(minutes=grace_period_mins)
+        deadline_dt = datetime.combine(dummy_date, shift.start_time) + timedelta(minutes=grace_period_mins, seconds=grace_period_secs)
         return {"deadline": deadline_dt.time()}
 
     # ------------------------------------------------------------------
@@ -451,6 +454,7 @@ class AttendanceService:
         check_in_time: time,
         shift: Optional[Shift],
         grace_period_mins: int,
+        grace_period_secs: int,
         today: date,
         company_id: int,
     ) -> AttendanceStatusEnum:
@@ -469,7 +473,7 @@ class AttendanceService:
         # Compute shift deadline (start_time + grace_period)
         dummy_date = date(2000, 1, 1)
         shift_start_dt = datetime.combine(dummy_date, shift.start_time)
-        deadline_dt = shift_start_dt + timedelta(minutes=grace_period_mins)
+        deadline_dt = shift_start_dt + timedelta(minutes=grace_period_mins, seconds=grace_period_secs)
 
         check_in_dt = datetime.combine(dummy_date, check_in_time)
 

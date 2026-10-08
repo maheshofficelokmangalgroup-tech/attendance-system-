@@ -7,6 +7,7 @@ import apiClient from "@/api/client";
 
 const schema = z.object({
   grace_period_minutes: z.coerce.number().min(0).max(120),
+  grace_period_seconds: z.coerce.number().min(0).max(59),
   half_day_hours: z.coerce.number().min(0),
   full_day_hours: z.coerce.number().min(0),
   overtime_threshold_minutes: z.coerce.number().min(0),
@@ -22,7 +23,7 @@ const AttendanceRulesSettings: React.FC = () => {
   const { register, handleSubmit, reset, formState: { isSubmitting, errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      grace_period_minutes: 15, half_day_hours: 4, full_day_hours: 8,
+      grace_period_minutes: 15, grace_period_seconds: 0, half_day_hours: 4, full_day_hours: 8,
       overtime_threshold_minutes: 30, comp_off_threshold_minutes: 240,
       allow_wfh: true, allow_on_duty: true,
     },
@@ -50,6 +51,7 @@ const AttendanceRulesSettings: React.FC = () => {
 
   const fields: AttendanceField[] = [
     { key: "grace_period_minutes", label: "Grace Period (minutes)", help: "Minutes allowed after shift start before marking Late", type: "number" },
+    { key: "grace_period_seconds", label: "Grace Period (extra seconds)", help: "Added on top of the minutes above — e.g. 17 min + 30 sec = late after 10:17:30 AM for a 10:00 AM shift", type: "number" },
     { key: "half_day_hours", label: "Half Day Threshold (hours)", help: "Minimum hours worked to count as a Half Day", type: "number", step: "0.5" },
     { key: "full_day_hours", label: "Full Day Threshold (hours)", help: "Minimum hours worked to count as a Full Day (Present)", type: "number", step: "0.5" },
     { key: "overtime_threshold_minutes", label: "Overtime Threshold (minutes)", help: "Extra minutes beyond shift end before counting as overtime", type: "number" },

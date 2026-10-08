@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 class AttendanceRulesUpdate(BaseModel):
     grace_period_minutes: Optional[int] = Field(None, ge=0, le=120)
+    grace_period_seconds: Optional[int] = Field(None, ge=0, le=59)
     half_day_hours: Optional[float] = Field(None, ge=0)
     full_day_hours: Optional[float] = Field(None, ge=0)
     overtime_threshold_minutes: Optional[int] = Field(None, ge=0)
@@ -23,6 +24,7 @@ class AttendanceRulesResponse(BaseModel):
     id: int
     company_id: int
     grace_period_minutes: int
+    grace_period_seconds: int
     half_day_hours: float
     full_day_hours: float
     overtime_threshold_minutes: int
