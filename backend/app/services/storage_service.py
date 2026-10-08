@@ -73,11 +73,14 @@ class CloudinaryStorageService(BaseStorageService):
         clean_rel = relative_path.replace("\\", "/")
         public_id = os.path.splitext(clean_rel)[0]
 
+        # "image" rejects non-image files (e.g. a PDF degree certificate) —
+        # "auto" lets Cloudinary route each upload to the correct resource
+        # type (image vs raw) based on its actual content.
         result = cloudinary.uploader.upload(
             file_obj,
             public_id=public_id,
             overwrite=True,
-            resource_type="image",
+            resource_type="auto",
         )
         return result["secure_url"]
 
