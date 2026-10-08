@@ -69,6 +69,8 @@ class CloudinaryStorageService(BaseStorageService):
         (e.g. "attendance/emp_1_checkin_x"). Returns the Cloudinary secure_url.
         """
         import cloudinary.uploader
+        import cloudinary.exceptions
+        from fastapi import HTTPException, status as http_status
 
         clean_rel = relative_path.replace("\\", "/")
         public_id = os.path.splitext(clean_rel)[0]
@@ -76,12 +78,18 @@ class CloudinaryStorageService(BaseStorageService):
         # "image" rejects non-image files (e.g. a PDF degree certificate) —
         # "auto" lets Cloudinary route each upload to the correct resource
         # type (image vs raw) based on its actual content.
-        result = cloudinary.uploader.upload(
-            file_obj,
-            public_id=public_id,
-            overwrite=True,
-            resource_type="auto",
-        )
+        try:
+            result = cloudinary.uploader.upload(
+                file_obj,
+                public_id=public_id,
+                overwrite=True,
+                resource_type="auto",
+            )
+        except cloudinary.exceptions.Error as e:
+            raise HTTPException(
+                status_code=http_status.HTTP_502_BAD_GATEWAY,
+                detail=f"File upload to storage provider failed: {e}",
+            )
         return result["secure_url"]
 
     def delete_file(self, relative_path: str) -> bool:
