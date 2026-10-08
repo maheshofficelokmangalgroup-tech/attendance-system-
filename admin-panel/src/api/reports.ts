@@ -75,16 +75,16 @@ export const fetchDashboardAnalytics = async (company_id: number = 1): Promise<D
   return response.data;
 };
 
-export const fetchMusterRoll = async (year: number, month: number, department_id?: number): Promise<MusterRollData> => {
+export const fetchMusterRoll = async (year: number, month: number, department_id?: number, company_id: number = 1): Promise<MusterRollData> => {
   const response = await apiClient.get("/reports/muster-roll", {
-    params: { company_id: 1, year, month, department_id },
+    params: { company_id, year, month, department_id },
   });
   return response.data;
 };
 
-export const fetchReportData = async (report_type: string, from_date?: string, to_date?: string, department_id?: number): Promise<GenericReportData> => {
+export const fetchReportData = async (report_type: string, from_date?: string, to_date?: string, department_id?: number, company_id: number = 1): Promise<GenericReportData> => {
   const response = await apiClient.get(`/reports/${report_type}`, {
-    params: { company_id: 1, from_date, to_date, department_id },
+    params: { company_id, from_date, to_date, department_id },
   });
   return response.data;
 };
@@ -110,14 +110,17 @@ export interface ReportExportFilters {
   department_id?: number;
   year?: number;
   month?: number;
+  company_id?: number;
 }
 
 export const downloadReportCSV = (report_type: string, filters: ReportExportFilters = {}) => {
-  return downloadBlob(`/reports/${report_type}/export`, { company_id: 1, ...filters }, `${report_type}_report.csv`);
+  const { company_id = 1, ...rest } = filters;
+  return downloadBlob(`/reports/${report_type}/export`, { company_id, ...rest }, `${report_type}_report.csv`);
 };
 
 export const downloadReportExcel = (report_type: string, filters: ReportExportFilters = {}) => {
-  return downloadBlob(`/reports/${report_type}/export-excel`, { company_id: 1, ...filters }, `${report_type}_report.xlsx`);
+  const { company_id = 1, ...rest } = filters;
+  return downloadBlob(`/reports/${report_type}/export-excel`, { company_id, ...rest }, `${report_type}_report.xlsx`);
 };
 
 export const downloadEmployeeExcelReport = (employeeId: number, fromDate: string, toDate: string, employeeName: string) => {

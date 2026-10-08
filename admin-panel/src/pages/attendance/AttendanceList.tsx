@@ -15,15 +15,18 @@ import {
 import apiClient, { resolvePhotoUrl } from "@/api/client";
 
 interface Department { id: number; name: string; }
+interface Company { id: number; name: string; }
 
 const AttendanceList: React.FC = () => {
   const [items, setItems] = useState<AttendanceItem[]>([]);
   const [summary, setSummary] = useState<AttendanceTodaySummaryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
 
   // Filters
   const [search, setSearch] = useState("");
+  const [companyId, setCompanyId] = useState<number>(1);
   const [departmentId, setDepartmentId] = useState<number | "">("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [fromDate, setFromDate] = useState<string>("");
@@ -39,7 +42,7 @@ const AttendanceList: React.FC = () => {
 
   const loadData = () => {
     setIsLoading(true);
-    const params: any = { company_id: 1, page_size: 100 };
+    const params: any = { company_id: companyId, page_size: 100 };
     if (search) params.search = search;
     if (departmentId) params.department_id = departmentId;
     if (statusFilter) params.status = statusFilter;
@@ -48,7 +51,7 @@ const AttendanceList: React.FC = () => {
 
     Promise.all([
       fetchAttendanceList(params),
-      fetchTodaySummary(1),
+      fetchTodaySummary(companyId),
     ])
       .then(([listData, summaryData]) => {
         setItems(Array.isArray(listData) ? listData : listData?.data ?? []);
@@ -59,12 +62,18 @@ const AttendanceList: React.FC = () => {
   };
 
   useEffect(() => {
-    apiClient.get("/departments?company_id=1&page_size=100")
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies(Array.isArray(data) ? data : data?.data ?? []))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    apiClient.get(`/departments?company_id=${companyId}&page_size=100`)
       .then(({ data }) => setDepartments(Array.isArray(data) ? data : data?.data ?? []))
       .catch(console.error);
 
     loadData();
-  }, [departmentId, statusFilter, fromDate, toDate]);
+  }, [companyId, departmentId, statusFilter, fromDate, toDate]);
 
   const openDrillDown = async (item: AttendanceItem) => {
     try {
@@ -239,6 +248,18 @@ const AttendanceList: React.FC = () => {
           <Filter size={16} color="var(--color-text-secondary)" />
           <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>FILTERS:</span>
         </div>
+
+        {/* Company Filter */}
+        <select
+          className="input"
+          style={{ width: "170px" }}
+          value={companyId}
+          onChange={(e) => { setCompanyId(Number(e.target.value)); setDepartmentId(""); }}
+        >
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
 
         {/* Department Filter */}
         <select

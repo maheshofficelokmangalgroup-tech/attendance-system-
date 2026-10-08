@@ -11,6 +11,7 @@ import {
 import apiClient from "@/api/client";
 
 interface Department { id: number; name: string; }
+interface Company { id: number; name: string; }
 
 interface ReportMeta {
   id: string;
@@ -203,6 +204,8 @@ const ReportsHub: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Filters
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [deptId, setDeptId] = useState<number | "">("");
   const [fromDate, setFromDate] = useState("");
@@ -212,21 +215,27 @@ const ReportsHub: React.FC = () => {
   const [year, setYear] = useState(today.getFullYear());
 
   useEffect(() => {
-    apiClient.get("/departments?company_id=1&page_size=100")
-      .then(({ data }) => setDepartments(Array.isArray(data) ? data : data?.data ?? []))
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies(Array.isArray(data) ? data : data?.data ?? []))
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    apiClient.get(`/departments?company_id=${companyId}&page_size=100`)
+      .then(({ data }) => setDepartments(Array.isArray(data) ? data : data?.data ?? []))
+      .catch(console.error);
+  }, [companyId]);
 
   const loadData = () => {
     if (selectedReportId === "employee_excel") return; // self-contained panel, fetches on its own
     setIsLoading(true);
     if (selectedReportId === "muster_roll") {
-      fetchMusterRoll(year, month, deptId || undefined)
+      fetchMusterRoll(year, month, deptId || undefined, companyId)
         .then(setMusterData)
         .catch(console.error)
         .finally(() => setIsLoading(false));
     } else {
-      fetchReportData(selectedReportId, fromDate || undefined, toDate || undefined, deptId || undefined)
+      fetchReportData(selectedReportId, fromDate || undefined, toDate || undefined, deptId || undefined, companyId)
         .then(setReportData)
         .catch(console.error)
         .finally(() => setIsLoading(false));
@@ -235,16 +244,16 @@ const ReportsHub: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [selectedReportId, deptId, fromDate, toDate, month, year]);
+  }, [selectedReportId, companyId, deptId, fromDate, toDate, month, year]);
 
   const currentMeta = REPORT_TYPES.find((r) => r.id === selectedReportId) ?? REPORT_TYPES[0];
 
   // Exports should reflect whatever's on screen, not always the unfiltered
   // full dataset — otherwise "Export CSV/Excel" silently ignores the date
-  // range, department, or muster-roll month the admin just picked.
+  // range, department, company, or muster-roll month the admin just picked.
   const exportFilters = selectedReportId === "muster_roll"
-    ? { year, month, department_id: deptId || undefined }
-    : { from_date: fromDate || undefined, to_date: toDate || undefined, department_id: deptId || undefined };
+    ? { year, month, department_id: deptId || undefined, company_id: companyId }
+    : { from_date: fromDate || undefined, to_date: toDate || undefined, department_id: deptId || undefined, company_id: companyId };
 
   const genericColumns: Column<Record<string, unknown>>[] = (reportData?.headers ?? []).map((h, idx) => ({
     key: `col_${idx}`,
@@ -360,6 +369,15 @@ const ReportsHub: React.FC = () => {
                 <Filter size={15} color="var(--color-text-secondary)" />
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)" }}>FILTER:</span>
               </div>
+
+              <select
+                className="input"
+                style={{ width: "170px" }}
+                value={companyId}
+                onChange={(e) => { setCompanyId(Number(e.target.value)); setDeptId(""); }}
+              >
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
 
               {selectedReportId === "muster_roll" ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
