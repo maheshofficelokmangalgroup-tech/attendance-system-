@@ -8,6 +8,9 @@ from app.core.config import settings
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
+ALLOWED_DOCUMENT_MIME_TYPES = ALLOWED_MIME_TYPES | {"application/pdf"}
+ALLOWED_DOCUMENT_EXTENSIONS = ALLOWED_EXTENSIONS | {".pdf"}
+
 
 def validate_image_upload(file: UploadFile) -> str:
     """
@@ -31,6 +34,27 @@ def validate_image_upload(file: UploadFile) -> str:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid content-type '{file.content_type}'. Allowed: JPEG, PNG, WEBP",
+        )
+
+    return ext
+
+
+def validate_document_upload(file: UploadFile) -> str:
+    """Like validate_image_upload but also accepts PDF — for documents such as
+    a degree certificate that are commonly scanned/exported as PDF."""
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext not in ALLOWED_DOCUMENT_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file extension '{ext}'. Allowed: {', '.join(sorted(ALLOWED_DOCUMENT_EXTENSIONS))}",
+        )
+
+    if file.content_type and file.content_type.lower() not in ALLOWED_DOCUMENT_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid content-type '{file.content_type}'. Allowed: JPEG, PNG, WEBP, PDF",
         )
 
     return ext

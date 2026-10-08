@@ -157,6 +157,10 @@ class EmployeeKycUpsert(BaseModel):
 class EmployeeKycResponse(EmployeeKycUpsert):
     id: int
     employee_id: int
+    aadhar_front_path: Optional[str] = None
+    aadhar_back_path: Optional[str] = None
+    pan_photo_path: Optional[str] = None
+    degree_certificate_path: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

@@ -170,6 +170,30 @@ def upsert_employee_kyc(
     return APIResponse(data=data, message="KYC details saved")
 
 
+@router.post(
+    "/{employee_id}/kyc/documents",
+    response_model=APIResponse[EmployeeKycResponse],
+    summary="Upload Aadhar front/back and PAN photo",
+)
+def upload_employee_kyc_documents(
+    employee_id: int,
+    request: Request,
+    aadhar_front: Optional[UploadFile] = File(None),
+    aadhar_back: Optional[UploadFile] = File(None),
+    pan_photo: Optional[UploadFile] = File(None),
+    degree_certificate: Optional[UploadFile] = File(None),
+    current_user: User = Depends(require_permission("update", "employee_kyc")),
+    db: Session = Depends(get_db),
+):
+    svc = EmployeeService(db)
+    data = svc.upload_kyc_documents(
+        employee_id, aadhar_front=aadhar_front, aadhar_back=aadhar_back, pan_photo=pan_photo,
+        degree_certificate=degree_certificate,
+        actor_id=current_user.id, ip=request.client.host if request.client else None,
+    )
+    return APIResponse(data=data, message="KYC documents uploaded")
+
+
 @router.get(
     "/{employee_id}/assets",
     response_model=APIResponse[List[EmployeeAssetResponse]],

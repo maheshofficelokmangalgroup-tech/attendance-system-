@@ -26,7 +26,7 @@ def create_company(payload: CompanyCreate, current_user: User = Depends(require_
 
 
 @router.get("/companies", response_model=APIResponse[List[CompanyResponse]], summary="List active companies")
-def list_companies(current_user: User = Depends(require_permission("manage", "company")), db: Session = Depends(get_db)):
+def list_companies(current_user: User = Depends(require_permission("view", "company")), db: Session = Depends(get_db)):
     return APIResponse(data=CompanyService(db).list_companies())
 
 

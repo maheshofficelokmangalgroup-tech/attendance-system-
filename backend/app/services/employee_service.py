@@ -16,7 +16,7 @@ from app.repository.employee_repo import EmployeeRepository
 from app.repository.user_repo import UserRepository, RefreshTokenRepository
 from app.repository.audit_repo import AuditRepository
 from app.services.storage_service import get_storage_service
-from app.utils.image import validate_image_upload, generate_unique_filename
+from app.utils.image import validate_image_upload, validate_document_upload, generate_unique_filename
 from app.schemas.employee import (
     EmployeeCreate, EmployeeUpdate, EmployeeResponse, EmployeeListItem,
     EmployeeKycUpsert, EmployeeKycResponse,
@@ -281,6 +281,48 @@ class EmployeeService:
         self.audit_repo.log(
             user_id=actor_id,
             action="employee_kyc_updated",
+            entity_type="Employee",
+            entity_id=employee_id,
+            ip_address=ip,
+        )
+        self.db.commit()
+        self.db.refresh(kyc)
+        return EmployeeKycResponse.model_validate(kyc)
+
+    def upload_kyc_documents(
+        self, employee_id: int,
+        aadhar_front: Optional[UploadFile] = None,
+        aadhar_back: Optional[UploadFile] = None,
+        pan_photo: Optional[UploadFile] = None,
+        degree_certificate: Optional[UploadFile] = None,
+        actor_id: Optional[int] = None, ip: Optional[str] = None,
+    ) -> EmployeeKycResponse:
+        if not self.repo.get(employee_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+        kyc = self.db.query(EmployeeKyc).filter_by(employee_id=employee_id).first()
+        if not kyc:
+            kyc = EmployeeKyc(employee_id=employee_id)
+            self.db.add(kyc)
+
+        storage = get_storage_service()
+        # Degree certificate is commonly a scanned PDF, not a photo — validated
+        # against the looser document allow-list (images + PDF) instead.
+        for upload, field, tag, validator in (
+            (aadhar_front, "aadhar_front_path", "aadhar_front", validate_image_upload),
+            (aadhar_back, "aadhar_back_path", "aadhar_back", validate_image_upload),
+            (pan_photo, "pan_photo_path", "pan_photo", validate_image_upload),
+            (degree_certificate, "degree_certificate_path", "degree_certificate", validate_document_upload),
+        ):
+            if upload is None:
+                continue
+            ext = validator(upload)
+            filename = generate_unique_filename(employee_id, tag, ext)
+            setattr(kyc, field, storage.save_file(upload.file, f"employees/kyc/{filename}"))
+
+        self.audit_repo.log(
+            user_id=actor_id,
+            action="employee_kyc_documents_uploaded",
             entity_type="Employee",
             entity_id=employee_id,
             ip_address=ip,

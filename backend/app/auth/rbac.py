@@ -28,6 +28,7 @@ ALL_ROLES: Tuple[str, ...] = (ROLE_ADMIN, ROLE_HR, ROLE_MANAGER, ROLE_EMPLOYEE)
 PERMISSION_MATRIX: Dict[Tuple[str, str], FrozenSet[str]] = {
     # Company / org structure setup
     ("manage", "company"):          frozenset([ROLE_ADMIN]),
+    ("view",   "company"):          frozenset([ROLE_ADMIN, ROLE_HR]),
     ("manage", "department"):       frozenset([ROLE_ADMIN]),
     ("manage", "designation"):      frozenset([ROLE_ADMIN]),
     ("manage", "shift"):            frozenset([ROLE_ADMIN]),

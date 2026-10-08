@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   ArrowLeft, Save, Loader2, CheckCircle2, Copy, Check, Eye, EyeOff, KeyRound, RefreshCw,
-  Camera, Plus, Trash2, PackageCheck, Undo2,
+  Camera, Plus, Trash2, PackageCheck, Undo2, FileText,
 } from "lucide-react";
 import apiClient from "@/api/client";
 
@@ -73,6 +73,10 @@ interface EmployeeDetail {
 interface KycDetail {
   aadhar_number: string | null;
   pan_number: string | null;
+  aadhar_front_path: string | null;
+  aadhar_back_path: string | null;
+  pan_photo_path: string | null;
+  degree_certificate_path: string | null;
   bank_account_number: string | null;
   bank_ifsc_code: string | null;
   bank_name: string | null;
@@ -131,11 +135,43 @@ const SectionHeader: React.FC<{ title: string; subtitle?: string }> = ({ title, 
   </div>
 );
 
+const DocUploadField: React.FC<{
+  label: string;
+  preview: string | null;
+  existing: string | null;
+  onChange: (file: File | null) => void;
+}> = ({ label, preview, existing, onChange }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+    <label style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>{label}</label>
+    <div style={{
+      width: "100%", height: "90px", borderRadius: "8px", overflow: "hidden",
+      background: "var(--color-background)", border: "1px dashed var(--color-border)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      {preview || existing ? (
+        <img src={preview ?? existing ?? undefined} alt={label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <span style={{ fontSize: "11px", color: "var(--color-text-secondary)" }}>No image</span>
+      )}
+    </div>
+    <label className="btn-ghost" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", cursor: "pointer", fontSize: "12px" }}>
+      <Camera size={12} /> {preview || existing ? "Change" : "Upload"}
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        style={{ display: "none" }}
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+      />
+    </label>
+  </div>
+);
+
 const EmployeeForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
+  const [companies, setCompanies] = useState<SelectOption[]>([]);
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [designations, setDesignations] = useState<SelectOption[]>([]);
   const [shifts, setShifts] = useState<SelectOption[]>([]);
@@ -149,6 +185,20 @@ const EmployeeForm: React.FC = () => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [existingPhotoPath, setExistingPhotoPath] = useState<string | null>(null);
+
+  // KYC document uploads (Aadhar front/back, PAN photo)
+  const [aadharFrontFile, setAadharFrontFile] = useState<File | null>(null);
+  const [aadharFrontPreview, setAadharFrontPreview] = useState<string | null>(null);
+  const [existingAadharFront, setExistingAadharFront] = useState<string | null>(null);
+  const [aadharBackFile, setAadharBackFile] = useState<File | null>(null);
+  const [aadharBackPreview, setAadharBackPreview] = useState<string | null>(null);
+  const [existingAadharBack, setExistingAadharBack] = useState<string | null>(null);
+  const [panPhotoFile, setPanPhotoFile] = useState<File | null>(null);
+  const [panPhotoPreview, setPanPhotoPreview] = useState<string | null>(null);
+  const [existingPanPhoto, setExistingPanPhoto] = useState<string | null>(null);
+  const [degreeCertFile, setDegreeCertFile] = useState<File | null>(null);
+  const [degreeCertPreview, setDegreeCertPreview] = useState<string | null>(null);
+  const [existingDegreeCertificate, setExistingDegreeCertificate] = useState<string | null>(null);
 
   // Inline "Reset Password" panel (edit mode only)
   const [showResetPanel, setShowResetPanel] = useState(false);
@@ -173,21 +223,32 @@ const EmployeeForm: React.FC = () => {
     defaultValues: { company_id: 1, employment_type: "full_time" },
   });
 
+  const companyId = watch("company_id");
   const deptId = watch("department_id");
   const passwordValue = watch("password");
   const sameAsPermanent = watch("same_as_permanent");
   const permanentAddress = watch("permanent_address");
 
+  const companyField = register("company_id", { valueAsNumber: true });
+
   useEffect(() => {
-    // Load dropdowns
+    // Companies for the selector — loaded once
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: SelectOption[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    // Department/Shift options depend on which company is selected
+    if (!companyId) return;
     Promise.all([
-      apiClient.get("/departments?company_id=1&page_size=100"),
-      apiClient.get("/shifts?company_id=1"),
+      apiClient.get(`/departments?company_id=${companyId}&page_size=100`),
+      apiClient.get(`/shifts?company_id=${companyId}`),
     ]).then(([depts, shiftsRes]) => {
       setDepartments((Array.isArray(depts.data) ? depts.data : (depts.data as { data?: SelectOption[] })?.data) ?? []);
       setShifts((Array.isArray(shiftsRes.data) ? shiftsRes.data : shiftsRes.data?.data) ?? []);
     }).catch(console.error);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     if (deptId) {
@@ -252,6 +313,10 @@ const EmployeeForm: React.FC = () => {
         // department_id must be set before the designation-loading effect fires
         if (emp.department?.id) setValue("department_id", emp.department.id);
         setExistingPhotoPath(emp.photo_path ?? null);
+        setExistingAadharFront(kyc?.aadhar_front_path ?? null);
+        setExistingAadharBack(kyc?.aadhar_back_path ?? null);
+        setExistingPanPhoto(kyc?.pan_photo_path ?? null);
+        setExistingDegreeCertificate(kyc?.degree_certificate_path ?? null);
         loadAssets(id);
       })
       .catch(() => setServerError("Failed to load employee details"))
@@ -269,6 +334,18 @@ const EmployeeForm: React.FC = () => {
     const form = new FormData();
     form.append("photo", photoFile);
     await apiClient.post(`/employees/${employeeId}/photo`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  };
+
+  const uploadKycDocsIfNeeded = async (employeeId: number) => {
+    if (!aadharFrontFile && !aadharBackFile && !panPhotoFile && !degreeCertFile) return;
+    const form = new FormData();
+    if (aadharFrontFile) form.append("aadhar_front", aadharFrontFile);
+    if (aadharBackFile) form.append("aadhar_back", aadharBackFile);
+    if (panPhotoFile) form.append("pan_photo", panPhotoFile);
+    if (degreeCertFile) form.append("degree_certificate", degreeCertFile);
+    await apiClient.post(`/employees/${employeeId}/kyc/documents`, form, {
       headers: { "Content-Type": "multipart/form-data" },
     });
   };
@@ -304,6 +381,7 @@ const EmployeeForm: React.FC = () => {
         await apiClient.put(`/employees/${id}`, updatePayload);
         await saveKycIfNeeded(Number(id), values);
         await uploadPhotoIfNeeded(Number(id));
+        await uploadKycDocsIfNeeded(Number(id));
         navigate("/employees");
       } else {
         // Untouched inputs report "" rather than undefined — omit both so a
@@ -319,6 +397,7 @@ const EmployeeForm: React.FC = () => {
         const created = unwrap<{ id: number }>(data);
         await saveKycIfNeeded(created.id, values);
         await uploadPhotoIfNeeded(created.id);
+        await uploadKycDocsIfNeeded(created.id);
         // Backend uses the given password, or falls back to the employee code
         // (see EmployeeService.create) — surface whichever was actually used.
         setCredentialsResult({
@@ -656,7 +735,93 @@ const EmployeeForm: React.FC = () => {
             </FormField>
           </div>
 
+          <div style={{ maxWidth: "280px" }}>
+            <label style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)", display: "block", marginBottom: "6px" }}>
+              Degree Certificate
+            </label>
+            <div style={{
+              width: "100%", minHeight: "90px", borderRadius: "8px", overflow: "hidden",
+              background: "var(--color-background)", border: "1px dashed var(--color-border)",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: "10px",
+            }}>
+              {degreeCertFile ? (
+                degreeCertPreview ? (
+                  <img src={degreeCertPreview} alt="Degree Certificate" style={{ width: "100%", height: "90px", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: "12px", color: "var(--color-text-primary)", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                    <FileText size={18} /> {degreeCertFile.name}
+                  </span>
+                )
+              ) : existingDegreeCertificate ? (
+                existingDegreeCertificate.toLowerCase().endsWith(".pdf") ? (
+                  <a
+                    href={existingDegreeCertificate}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: "12px", color: "var(--color-primary)", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}
+                  >
+                    <FileText size={18} /> View uploaded PDF
+                  </a>
+                ) : (
+                  <img src={existingDegreeCertificate} alt="Degree Certificate" style={{ width: "100%", height: "90px", objectFit: "cover" }} />
+                )
+              ) : (
+                <span style={{ fontSize: "11px", color: "var(--color-text-secondary)" }}>No file</span>
+              )}
+            </div>
+            <label className="btn-ghost" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", cursor: "pointer", fontSize: "12px", marginTop: "6px", width: "100%" }}>
+              <Camera size={12} /> {degreeCertFile || existingDegreeCertificate ? "Change" : "Upload"}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setDegreeCertFile(f);
+                  setDegreeCertPreview(f && f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
+                }}
+              />
+            </label>
+            <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "4px" }}>JPEG, PNG, WEBP or PDF</p>
+          </div>
+
+          <div style={grid3}>
+            <DocUploadField
+              label="Aadhar Front"
+              preview={aadharFrontPreview}
+              existing={existingAadharFront}
+              onChange={(f) => { setAadharFrontFile(f); setAadharFrontPreview(f ? URL.createObjectURL(f) : null); }}
+            />
+            <DocUploadField
+              label="Aadhar Back"
+              preview={aadharBackPreview}
+              existing={existingAadharBack}
+              onChange={(f) => { setAadharBackFile(f); setAadharBackPreview(f ? URL.createObjectURL(f) : null); }}
+            />
+            <DocUploadField
+              label="PAN Card Photo"
+              preview={panPhotoPreview}
+              existing={existingPanPhoto}
+              onChange={(f) => { setPanPhotoFile(f); setPanPhotoPreview(f ? URL.createObjectURL(f) : null); }}
+            />
+          </div>
+
           <SectionHeader title="Work Details" />
+
+          <FormField label="Company" required error={errors.company_id?.message}>
+            <select
+              className="input"
+              {...companyField}
+              onChange={(e) => {
+                companyField.onChange(e);
+                setValue("department_id", undefined);
+                setValue("designation_id", undefined);
+                setValue("shift_id", undefined);
+              }}
+            >
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </FormField>
 
           <div style={grid2}>
             <FormField label="Department" error={errors.department_id?.message}>
