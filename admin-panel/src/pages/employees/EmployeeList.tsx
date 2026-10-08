@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, UserPlus } from "lucide-react";
+import { Plus, UserPlus, UserCheck, UserX } from "lucide-react";
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import StatusBadge from "@/components/ui/StatusBadge";
 import apiClient from "@/api/client";
@@ -17,75 +17,15 @@ interface Employee {
   is_active: boolean;
 }
 
-const columns: Column<Employee>[] = [
-  { key: "employee_code", header: "Code", sortable: true, width: "100px" },
-  {
-    key: "full_name",
-    header: "Name",
-    sortable: true,
-    render: (_, row) => (
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <div
-          style={{
-            width: "32px", height: "32px", borderRadius: "50%",
-            background: "var(--color-primary)", display: "flex",
-            alignItems: "center", justifyContent: "center",
-            fontSize: "12px", fontWeight: 700, color: "#fff", flexShrink: 0,
-          }}
-        >
-          {row.full_name[0]}
-        </div>
-        <div>
-          <p style={{ fontWeight: 600, color: "var(--color-text-primary)", fontSize: "14px" }}>{row.full_name}</p>
-          <p style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>{row.email}</p>
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: "department",
-    header: "Department",
-    render: (_, row) => row.department?.name ?? "—",
-  },
-  {
-    key: "designation",
-    header: "Designation",
-    render: (_, row) => row.designation?.name ?? "—",
-  },
-  {
-    key: "employment_type",
-    header: "Type",
-    render: (v) => (
-      <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "capitalize" }}>
-        {String(v).replace("_", " ")}
-      </span>
-    ),
-  },
-  {
-    key: "is_active",
-    header: "Status",
-    render: (v) => (
-      <span
-        style={{
-          display: "inline-flex", padding: "3px 10px", borderRadius: "9999px",
-          fontSize: "12px", fontWeight: 600,
-          background: v ? "rgba(5,150,105,0.12)" : "rgba(225,29,72,0.12)",
-          color: v ? "#059669" : "#E11D48",
-        }}
-      >
-        {v ? "Active" : "Inactive"}
-      </span>
-    ),
-  },
-];
-
 const EmployeeList: React.FC = () => {
   const navigate = useNavigate();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [togglingId, setTogglingId] = useState<number | null>(null);
 
-  useEffect(() => {
+  const loadEmployees = () => {
+    setIsLoading(true);
     // In production, company_id comes from the logged-in user's context
     apiClient.get("/employees?company_id=1&page_size=100")
       .then(({ data }) => {
@@ -93,7 +33,114 @@ const EmployeeList: React.FC = () => {
       })
       .catch(() => setError("Failed to load employees"))
       .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    loadEmployees();
   }, []);
+
+  const handleToggleActive = async (emp: Employee, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (emp.is_active && !window.confirm(`Deactivate ${emp.full_name}? They won't be able to log in or check in/out until reactivated.`)) {
+      return;
+    }
+    setTogglingId(emp.id);
+    try {
+      if (emp.is_active) {
+        await apiClient.delete(`/employees/${emp.id}`);
+      } else {
+        await apiClient.put(`/employees/${emp.id}`, { is_active: true });
+      }
+      setEmployees((prev) => prev.map((x) => (x.id === emp.id ? { ...x, is_active: !emp.is_active } : x)));
+    } catch (err: any) {
+      alert(err?.response?.data?.detail ?? "Failed to update employee status");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const columns: Column<Employee>[] = [
+    { key: "employee_code", header: "Code", sortable: true, width: "100px" },
+    {
+      key: "full_name",
+      header: "Name",
+      sortable: true,
+      render: (_, row) => (
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
+            style={{
+              width: "32px", height: "32px", borderRadius: "50%",
+              background: "var(--color-primary)", display: "flex",
+              alignItems: "center", justifyContent: "center",
+              fontSize: "12px", fontWeight: 700, color: "#fff", flexShrink: 0,
+            }}
+          >
+            {row.full_name[0]}
+          </div>
+          <div>
+            <p style={{ fontWeight: 600, color: "var(--color-text-primary)", fontSize: "14px" }}>{row.full_name}</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>{row.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "department",
+      header: "Department",
+      render: (_, row) => row.department?.name ?? "—",
+    },
+    {
+      key: "designation",
+      header: "Designation",
+      render: (_, row) => row.designation?.name ?? "—",
+    },
+    {
+      key: "employment_type",
+      header: "Type",
+      render: (v) => (
+        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)", textTransform: "capitalize" }}>
+          {String(v).replace("_", " ")}
+        </span>
+      ),
+    },
+    {
+      key: "is_active",
+      header: "Status",
+      render: (v) => (
+        <span
+          style={{
+            display: "inline-flex", padding: "3px 10px", borderRadius: "9999px",
+            fontSize: "12px", fontWeight: 600,
+            background: v ? "rgba(5,150,105,0.12)" : "rgba(225,29,72,0.12)",
+            color: v ? "#059669" : "#E11D48",
+          }}
+        >
+          {v ? "Active" : "Inactive"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      width: "130px",
+      render: (_, row) => (
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={togglingId === row.id}
+          onClick={(e) => handleToggleActive(row, e)}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            padding: "5px 10px", fontSize: "12px",
+            color: row.is_active ? "#E11D48" : "#059669",
+          }}
+        >
+          {row.is_active ? <UserX size={13} /> : <UserCheck size={13} />}
+          {togglingId === row.id ? "…" : row.is_active ? "Deactivate" : "Activate"}
+        </button>
+      ),
+    },
+  ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
