@@ -73,13 +73,13 @@ async def check_in(
 @router.post(
     "/check-out",
     response_model=APIResponse[AttendanceResponse],
-    summary="Employee Check-Out (Selfie photo + task summary)",
+    summary="Employee Check-Out (Selfie photo + GPS + task summary)",
 )
 async def check_out(
     request: Request,
-    latitude: Optional[float] = Form(None, ge=-90.0, le=90.0),
-    longitude: Optional[float] = Form(None, ge=-180.0, le=180.0),
-    gps_accuracy: Optional[float] = Form(None, ge=0.0),
+    latitude: float = Form(..., ge=-90.0, le=90.0),
+    longitude: float = Form(..., ge=-180.0, le=180.0),
+    gps_accuracy: float = Form(..., ge=0.0),
     device_id: Optional[str] = Form(None),
     device_model: Optional[str] = Form(None),
     os_version: Optional[str] = Form(None),

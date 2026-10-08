@@ -171,7 +171,7 @@ export const DashboardScreen = ({ navigation }: any) => {
                   style={[styles.checkInButton, { backgroundColor: "#D97706" }]}
                   onPress={() => navigation.navigate("CheckOut")}
                 >
-                  <Text style={styles.checkInButtonText}>📷  Selfie Check-Out</Text>
+                  <Text style={styles.checkInButtonText}>📷  Selfie & GPS Check-Out</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity

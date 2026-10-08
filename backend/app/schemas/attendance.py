@@ -21,10 +21,12 @@ class CheckInMetaData(BaseModel):
 
 
 class CheckOutMetaData(BaseModel):
-    # Check-out no longer collects GPS — selfie + task summary only.
-    latitude: Optional[float] = Field(None, ge=-90.0, le=90.0)
-    longitude: Optional[float] = Field(None, ge=-180.0, le=180.0)
-    gps_accuracy: Optional[float] = Field(None, ge=0.0)
+    # Selfie + live GPS, same as check-in — accuracy must be within 50m
+    # (validated in the service) and inside the office geofence if one is
+    # configured.
+    latitude: float = Field(..., ge=-90.0, le=90.0)
+    longitude: float = Field(..., ge=-180.0, le=180.0)
+    gps_accuracy: float = Field(..., ge=0.0)
     device_id: Optional[str] = None
     device_model: Optional[str] = None
     os_version: Optional[str] = None
