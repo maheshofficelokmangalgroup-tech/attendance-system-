@@ -96,6 +96,11 @@ export const fetchMyBalances = async (): Promise<LeaveBalanceItem[]> => {
   return response.data;
 };
 
+export const fetchEmployeeBalances = async (employeeId: number): Promise<LeaveBalanceItem[]> => {
+  const response = await apiClient.get(`/leaves/balances/${employeeId}`);
+  return response.data;
+};
+
 export const approveFirstLevel = async (id: number, remarks?: string) => {
   const response = await apiClient.post(`/leaves/${id}/approve-first`, { remarks });
   return response.data;

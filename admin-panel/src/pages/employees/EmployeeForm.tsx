@@ -5,9 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   ArrowLeft, Save, Loader2, CheckCircle2, Copy, Check, Eye, EyeOff, KeyRound, RefreshCw,
-  Camera, Plus, Trash2, PackageCheck, Undo2, FileText,
+  Camera, Plus, Trash2, PackageCheck, Undo2, FileText, CalendarDays,
 } from "lucide-react";
 import apiClient from "@/api/client";
+import { fetchEmployeeBalances, type LeaveBalanceItem } from "@/api/leaves";
 
 const schema = z.object({
   employee_code: z.string().min(1, "Required"),
@@ -215,6 +216,10 @@ const EmployeeForm: React.FC = () => {
   const [assetError, setAssetError] = useState("");
   const [isSavingAsset, setIsSavingAsset] = useState(false);
 
+  // Leave Balances (edit mode only, read-only view)
+  const [balances, setBalances] = useState<LeaveBalanceItem[]>([]);
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+
   const {
     register, handleSubmit, watch, reset, setValue,
     formState: { errors, isSubmitting },
@@ -271,6 +276,14 @@ const EmployeeForm: React.FC = () => {
       .finally(() => setIsLoadingAssets(false));
   };
 
+  const loadBalances = (employeeId: string) => {
+    setIsLoadingBalances(true);
+    fetchEmployeeBalances(Number(employeeId))
+      .then((data) => setBalances(unwrap<LeaveBalanceItem[]>(data) ?? []))
+      .catch(console.error)
+      .finally(() => setIsLoadingBalances(false));
+  };
+
   // Load the existing employee's data and prefill the form in edit mode
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -318,6 +331,7 @@ const EmployeeForm: React.FC = () => {
         setExistingPanPhoto(kyc?.pan_photo_path ?? null);
         setExistingDegreeCertificate(kyc?.degree_certificate_path ?? null);
         loadAssets(id);
+        loadBalances(id);
       })
       .catch(() => setServerError("Failed to load employee details"))
       .finally(() => setIsLoadingEmployee(false));
@@ -1031,6 +1045,40 @@ const EmployeeForm: React.FC = () => {
                       <Trash2 size={14} color="#E11D48" />
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isEdit && !isLoadingEmployee && (
+        <div className="card" style={{ padding: "24px", marginTop: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "18px" }}>
+            <CalendarDays size={17} color="var(--color-text-secondary)" />
+            <div>
+              <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text-primary)" }}>Leave Balances</p>
+              <p style={{ fontSize: "12px", color: "var(--color-text-secondary)" }}>Current-year balance by leave type</p>
+            </div>
+          </div>
+
+          {isLoadingBalances ? (
+            <p style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>Loading balances…</p>
+          ) : balances.length === 0 ? (
+            <p style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>No leave balances yet.</p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px" }}>
+              {balances.map((b) => (
+                <div key={b.id} style={{ padding: "14px", borderRadius: "10px", border: "1px solid var(--color-border)" }}>
+                  <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    {b.leave_type_code ?? "—"}
+                  </p>
+                  <p style={{ fontSize: "20px", fontWeight: 700, color: "var(--color-text-primary)", marginTop: "4px" }}>
+                    {b.balance_days}
+                  </p>
+                  <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "2px" }}>
+                    of {b.total_days} · {b.used_days} used
+                  </p>
                 </div>
               ))}
             </div>

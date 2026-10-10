@@ -13,10 +13,11 @@ from app.core.config import settings
 from app.models.attendance import Attendance, AttendanceDeviceLog, AttendanceStatusEnum, DeviceActionEnum
 from app.models.employee import Employee
 from app.models.company import Shift, AttendanceRules
-from app.models.leave import Holiday
+from app.models.leave import Holiday, LeaveType
 from app.repository.attendance_repo import AttendanceRepository
 from app.repository.employee_repo import EmployeeRepository
 from app.repository.company_repo import AttendanceRulesRepository, ShiftRepository
+from app.repository.leave_repo import LeaveRepository
 from app.repository.audit_repo import AuditRepository
 from app.services.storage_service import get_storage_service
 from app.utils.geo import validate_gps_accuracy, validate_geofence, build_google_maps_url, reverse_geocode_sync
@@ -36,6 +37,7 @@ class AttendanceService:
         self.employee_repo = EmployeeRepository(db)
         self.rules_repo = AttendanceRulesRepository(db)
         self.shift_repo = ShiftRepository(db)
+        self.leave_repo = LeaveRepository(db)
         self.audit_repo = AuditRepository(db)
         self.storage = get_storage_service()
 
@@ -143,6 +145,8 @@ class AttendanceService:
             )
             self.repo.create(attendance)
             self.db.flush()
+
+        self._credit_comp_off_if_sunday(employee, today)
 
         # 8. Log Telemetry to Device Log (with face embedding column ready)
         device_log = AttendanceDeviceLog(
@@ -448,6 +452,25 @@ class AttendanceService:
     # ------------------------------------------------------------------
     # Private Helper
     # ------------------------------------------------------------------
+
+    def _credit_comp_off_if_sunday(self, employee: Employee, work_date: date) -> None:
+        """Auto-earns 1 day toward the company's Comp-Off leave type (code
+        "COL") whenever an employee checks in on a Sunday — the universal
+        weekly-off day in this system. Adds to total_days (the earned pool),
+        not used_days, same as how any other leave type's entitlement grows.
+        No-op if the company has no active "COL" leave type configured."""
+        if work_date.weekday() != 6:
+            return
+        lt = (
+            self.db.query(LeaveType)
+            .filter(LeaveType.company_id == employee.company_id, LeaveType.code == "COL", LeaveType.is_active == True)  # noqa
+            .first()
+        )
+        if not lt:
+            return
+        bal = self.leave_repo.get_or_create_balance(employee.id, lt.id, work_date.year, 0.0)
+        bal.total_days = float(bal.total_days) + 1.0
+        bal.balance_days = float(bal.total_days) - float(bal.used_days)
 
     def _compute_check_in_status(
         self,
