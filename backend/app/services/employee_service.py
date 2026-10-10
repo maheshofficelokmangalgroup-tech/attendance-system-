@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.models.employee import Employee, EmployeeKyc, EmployeeAsset
+from app.models.leave import Leave
 from app.models.user import User
 from app.models.company import Department, Designation, Shift
 from app.repository.employee_repo import EmployeeRepository
@@ -181,6 +182,59 @@ class EmployeeService:
             entity_id=employee.id,
             ip_address=ip,
         )
+        self.db.commit()
+
+    def hard_delete(self, employee_id: int, actor_id: int, ip: Optional[str] = None) -> None:
+        """
+        Permanently and irreversibly removes an employee and everything
+        directly owned by them (attendance, leaves, balances, KYC, assets,
+        device logs, notifications, comp-offs, the linked login account) —
+        unlike delete() (soft deactivate), this makes them disappear from
+        every list and report entirely. For purging test/demo data, never
+        for a real employee's record.
+
+        Deletes via a direct bulk query (not session.delete()) so the
+        database's own ON DELETE CASCADE/SET NULL constraints do the
+        cascading — session.delete() instead tries to null out child FKs at
+        the ORM level first, which fails on the ones that are NOT NULL.
+        """
+        from app.models.user import User
+
+        employee = self.repo.get(employee_id)
+        if not employee:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+        before = {
+            "employee_code": employee.employee_code,
+            "full_name": employee.full_name,
+            "email": employee.email,
+        }
+        user = employee.user
+
+        # Leave.applied_by is NOT NULL + ON DELETE RESTRICT (an HR/Admin
+        # applying leave on someone else's behalf) — the only reference to
+        # employees.id that isn't CASCADE/SET NULL. InnoDB checks it
+        # independently per row, so it blocks the delete even for the
+        # employee's *own* leaves (applied_by == employee_id there too) —
+        # those rows are about to be cascade-deleted via employee_id anyway,
+        # but the RESTRICT check still runs first, so every row referencing
+        # this employee as applicant must be reassigned, not just others'.
+        self.db.query(Leave).filter(
+            Leave.applied_by == employee_id
+        ).update({Leave.applied_by: actor_id}, synchronize_session=False)
+
+        self.audit_repo.log(
+            user_id=actor_id,
+            action="employee_hard_deleted",
+            entity_type="Employee",
+            entity_id=employee_id,
+            before_data=before,
+            ip_address=ip,
+        )
+
+        self.db.query(Employee).filter(Employee.id == employee_id).delete(synchronize_session=False)
+        if user:
+            self.db.query(User).filter(User.id == user.id).delete(synchronize_session=False)
         self.db.commit()
 
     def get(self, employee_id: int) -> EmployeeResponse:

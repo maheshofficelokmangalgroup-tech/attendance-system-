@@ -123,6 +123,22 @@ def delete_employee(
     return APIResponse(message="Employee deactivated")
 
 
+@router.delete(
+    "/{employee_id}/permanent",
+    response_model=APIResponse[None],
+    summary="Permanently delete an employee and all their data (Admin only, irreversible)",
+)
+def hard_delete_employee(
+    employee_id: int,
+    request: Request,
+    current_user: User = Depends(require_permission("delete", "employee")),
+    db: Session = Depends(get_db),
+):
+    svc = EmployeeService(db)
+    svc.hard_delete(employee_id, actor_id=current_user.id, ip=request.client.host if request.client else None)
+    return APIResponse(message="Employee permanently deleted")
+
+
 @router.post(
     "/{employee_id}/photo",
     response_model=APIResponse[EmployeeResponse],
