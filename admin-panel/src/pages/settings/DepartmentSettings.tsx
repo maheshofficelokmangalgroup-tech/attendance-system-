@@ -3,8 +3,11 @@ import { Plus, Trash2, Edit2, Save, X, Loader2, GitBranch } from "lucide-react";
 import apiClient from "@/api/client";
 
 interface Department { id: number; name: string; is_active: boolean; }
+interface Company { id: number; name: string; }
 
 const DepartmentSettings: React.FC = () => {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
   const [items, setItems] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -13,21 +16,27 @@ const DepartmentSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
   const load = () => {
     setIsLoading(true);
-    apiClient.get("/departments?company_id=1&page_size=100")
+    apiClient.get(`/departments?company_id=${companyId}&page_size=100`)
       .then(({ data }) => setItems((Array.isArray(data) ? data : (data as { data?: Department[] })?.data) ?? []))
       .catch(() => setError("Failed to load departments"))
       .finally(() => setIsLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [companyId]);
 
   const create = async () => {
     if (!newName.trim()) return;
     setSaving(true);
     try {
-      await apiClient.post("/departments", { company_id: 1, name: newName.trim() });
+      await apiClient.post("/departments", { company_id: companyId, name: newName.trim() });
       setNewName(""); load();
     } catch (e: unknown) {
       setError((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed");
@@ -62,6 +71,20 @@ const DepartmentSettings: React.FC = () => {
       </div>
 
       {error && <div style={{ padding: "12px", borderRadius: "10px", background: "rgba(225,29,72,0.1)", color: "#E11D48", fontSize: "13px", marginBottom: "16px", border: "1px solid rgba(225,29,72,0.3)" }}>{error}</div>}
+
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "6px" }}>
+          Company
+        </label>
+        <select
+          className="input"
+          style={{ maxWidth: "280px" }}
+          value={companyId}
+          onChange={(e) => setCompanyId(Number(e.target.value))}
+        >
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
 
       {/* Add new */}
       <div className="card" style={{ padding: "20px", marginBottom: "16px" }}>

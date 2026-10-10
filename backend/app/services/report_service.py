@@ -313,7 +313,7 @@ class ReportService:
             q = (
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
-                .filter(Employee.company_id == company_id, Attendance.date >= from_date, Attendance.date <= to_date)
+                .filter(Employee.company_id == company_id, Employee.is_active == True, Attendance.date >= from_date, Attendance.date <= to_date)  # noqa
             )
             if department_id:
                 q = q.filter(Employee.department_id == department_id)
@@ -336,7 +336,7 @@ class ReportService:
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
-                    Employee.company_id == company_id,
+                    Employee.company_id == company_id, Employee.is_active == True,  # noqa
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.status.in_([AttendanceStatusEnum.LATE, AttendanceStatusEnum.HALF_DAY]),
                 )
@@ -360,7 +360,7 @@ class ReportService:
             q = (
                 self.db.query(LeaveBalance)
                 .join(Employee, LeaveBalance.employee_id == Employee.id)
-                .filter(Employee.company_id == company_id)
+                .filter(Employee.company_id == company_id, Employee.is_active == True)  # noqa
             )
             if department_id:
                 q = q.filter(Employee.department_id == department_id)
@@ -401,7 +401,7 @@ class ReportService:
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
-                    Employee.company_id == company_id,
+                    Employee.company_id == company_id, Employee.is_active == True,  # noqa
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.status == AttendanceStatusEnum.ABSENT,
                 )
@@ -424,7 +424,7 @@ class ReportService:
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
-                    Employee.company_id == company_id,
+                    Employee.company_id == company_id, Employee.is_active == True,  # noqa
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.working_hours.isnot(None),
                 )
@@ -454,7 +454,7 @@ class ReportService:
                 self.db.query(Attendance)
                 .join(Employee, Attendance.employee_id == Employee.id)
                 .filter(
-                    Employee.company_id == company_id,
+                    Employee.company_id == company_id, Employee.is_active == True,  # noqa
                     Attendance.date >= from_date, Attendance.date <= to_date,
                     Attendance.status.in_([AttendanceStatusEnum.WFH, AttendanceStatusEnum.ON_DUTY]),
                 )
