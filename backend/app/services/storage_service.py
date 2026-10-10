@@ -74,25 +74,25 @@ class CloudinaryStorageService(BaseStorageService):
 
         clean_rel = relative_path.replace("\\", "/")
         ext = os.path.splitext(clean_rel)[1].lower()
+        # Extension always stripped from public_id, for every resource type —
+        # this account's "PDF and ZIP files delivery" security setting is
+        # disabled, and it blocks (401) *any* delivery URL ending in .pdf
+        # regardless of whether the upload went through as "image" or "raw".
+        # Tested directly: identical raw-type uploads differing only in
+        # whether public_id kept the .pdf suffix got 200 vs 401. A PDF's
+        # file type can't be inferred from its URL any more because of this
+        # — callers use an onError fallback (try <img>, fall back to a
+        # document icon) instead of sniffing the extension.
+        public_id = os.path.splitext(clean_rel)[0]
 
         # "auto" lets Cloudinary inspect the content and pick image vs raw —
         # but for a PDF this is inconsistent: some get classified as "image"
-        # (served under /image/upload/, which Cloudinary's PDF/ZIP security
-        # policy blocks with 401 on this account) and others as "raw" (served
-        # under /raw/upload/, unaffected by that policy) — same file type,
-        # different outcome depending on content. Deciding by extension
-        # ourselves removes that ambiguity: real images always go through
-        # "image" (gets thumbnails/transforms), everything else — PDFs
-        # included — always goes through "raw" (plain byte storage, no
-        # image-pipeline security policy to trip over).
+        # and others as "raw" depending on file content, for no functional
+        # reason. Deciding by extension ourselves is deterministic: real
+        # images always go through "image" (gets thumbnails/transforms),
+        # everything else always goes through "raw" (plain byte storage).
         image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
         resource_type = "image" if ext in image_exts else "raw"
-        # "image" uploads get their format auto-appended by Cloudinary, so the
-        # extension must be stripped from public_id to avoid a double
-        # extension — "raw" uploads get no such auto-append, so the extension
-        # has to stay in public_id or the returned URL ends with no
-        # extension at all, breaking any "is this a PDF" check downstream.
-        public_id = os.path.splitext(clean_rel)[0] if resource_type == "image" else clean_rel
 
         try:
             result = cloudinary.uploader.upload(
@@ -115,7 +115,7 @@ class CloudinaryStorageService(BaseStorageService):
         ext = os.path.splitext(clean_rel)[1].lower()
         image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
         resource_type = "image" if ext in image_exts else "raw"
-        public_id = os.path.splitext(clean_rel)[0] if resource_type == "image" else clean_rel
+        public_id = os.path.splitext(clean_rel)[0]
         result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
         return result.get("result") == "ok"
 

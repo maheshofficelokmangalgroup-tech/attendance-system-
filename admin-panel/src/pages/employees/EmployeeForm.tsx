@@ -200,6 +200,10 @@ const EmployeeForm: React.FC = () => {
   const [degreeCertFile, setDegreeCertFile] = useState<File | null>(null);
   const [degreeCertPreview, setDegreeCertPreview] = useState<string | null>(null);
   const [existingDegreeCertificate, setExistingDegreeCertificate] = useState<string | null>(null);
+  // Uploaded files are stored without an extension (see backend storage_service),
+  // so there's no filename to sniff for "is this a PDF" — try rendering it as
+  // an image and fall back to a plain document link if that fails to load.
+  const [existingDocIsNotImage, setExistingDocIsNotImage] = useState(false);
 
   // Inline "Reset Password" panel (edit mode only)
   const [showResetPanel, setShowResetPanel] = useState(false);
@@ -372,6 +376,7 @@ const EmployeeForm: React.FC = () => {
         setExistingAadharBack(kyc?.aadhar_back_path ?? null);
         setExistingPanPhoto(kyc?.pan_photo_path ?? null);
         setExistingDegreeCertificate(kyc?.degree_certificate_path ?? null);
+        setExistingDocIsNotImage(false);
         loadAssets(id);
         loadBalances(id);
       })
@@ -809,17 +814,22 @@ const EmployeeForm: React.FC = () => {
                   </span>
                 )
               ) : existingDegreeCertificate ? (
-                existingDegreeCertificate.toLowerCase().endsWith(".pdf") ? (
+                existingDocIsNotImage ? (
                   <a
                     href={existingDegreeCertificate}
                     target="_blank"
                     rel="noreferrer"
                     style={{ fontSize: "12px", color: "var(--color-primary)", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}
                   >
-                    <FileText size={18} /> View uploaded PDF
+                    <FileText size={18} /> View Document
                   </a>
                 ) : (
-                  <img src={existingDegreeCertificate} alt="Degree Certificate" style={{ width: "100%", height: "90px", objectFit: "cover" }} />
+                  <img
+                    src={existingDegreeCertificate}
+                    alt="Degree Certificate"
+                    style={{ width: "100%", height: "90px", objectFit: "cover" }}
+                    onError={() => setExistingDocIsNotImage(true)}
+                  />
                 )
               ) : (
                 <span style={{ fontSize: "11px", color: "var(--color-text-secondary)" }}>No file</span>

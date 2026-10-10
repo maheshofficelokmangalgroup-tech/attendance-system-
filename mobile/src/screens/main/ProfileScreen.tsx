@@ -53,6 +53,11 @@ export const ProfileScreen = () => {
   const [kyc, setKyc] = React.useState<KycData | null>(null);
   const [isLoadingKyc, setIsLoadingKyc] = React.useState(true);
   const [uploadingField, setUploadingField] = React.useState<DocField | null>(null);
+  // Uploaded files are stored without an extension (see backend
+  // storage_service), so there's no filename to sniff for "is this a PDF" —
+  // try rendering each as an image and fall back to a document icon per
+  // field if that image fails to load.
+  const [imageLoadFailed, setImageLoadFailed] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     apiClient.get("/employees/me/kyc")
@@ -80,6 +85,7 @@ export const ProfileScreen = () => {
         headers: Platform.OS === "web" ? { "Content-Type": undefined } : { "Content-Type": "multipart/form-data" },
       });
       setKyc((response.data?.data ?? response.data) ?? null);
+      setImageLoadFailed((prev) => ({ ...prev, [field]: false }));
       hapticSuccess();
     } catch (e: any) {
       hapticError();
@@ -170,7 +176,7 @@ export const ProfileScreen = () => {
             {DOC_FIELDS.map(({ key, label }) => {
               const path = pathForField(kyc, key);
               const isUploaded = Boolean(path);
-              const isPdf = typeof path === "string" && path.toLowerCase().endsWith(".pdf");
+              const failedAsImage = imageLoadFailed[key];
               const isUploading = uploadingField === key;
               return (
                 <TouchableOpacity
@@ -183,9 +189,13 @@ export const ProfileScreen = () => {
                   <View style={styles.docPreview}>
                     {isUploading ? (
                       <ActivityIndicator color={colors.primary} />
-                    ) : isUploaded && !isPdf ? (
-                      <Image source={{ uri: resolvePhotoUrl(path) }} style={styles.docPreviewImg} />
-                    ) : isUploaded && isPdf ? (
+                    ) : isUploaded && !failedAsImage ? (
+                      <Image
+                        source={{ uri: resolvePhotoUrl(path) }}
+                        style={styles.docPreviewImg}
+                        onError={() => setImageLoadFailed((prev) => ({ ...prev, [key]: true }))}
+                      />
+                    ) : isUploaded && failedAsImage ? (
                       <Feather name="file-text" size={22} color={colors.primary} />
                     ) : (
                       <Feather name="upload" size={18} color={colors.textSecondary} />
