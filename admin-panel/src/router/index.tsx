@@ -8,6 +8,7 @@ import LoginPage from "@/pages/Login";
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const EmployeeList = lazy(() => import("@/pages/employees/EmployeeList"));
 const EmployeeForm = lazy(() => import("@/pages/employees/EmployeeForm"));
+const SettingsHub = lazy(() => import("@/pages/settings/SettingsHub"));
 const CompanySettings = lazy(() => import("@/pages/settings/CompanySettings"));
 const DepartmentSettings = lazy(() => import("@/pages/settings/DepartmentSettings"));
 const DesignationSettings = lazy(() => import("@/pages/settings/DesignationSettings"));
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
               { path: "/employees", element: <Suspense fallback={<PageLoader />}><EmployeeList /></Suspense> },
               { path: "/employees/new", element: <Suspense fallback={<PageLoader />}><EmployeeForm /></Suspense> },
               { path: "/employees/:id/edit", element: <Suspense fallback={<PageLoader />}><EmployeeForm /></Suspense> },
+              { path: "/settings", element: <Suspense fallback={<PageLoader />}><SettingsHub /></Suspense> },
               { path: "/settings/company", element: <Suspense fallback={<PageLoader />}><CompanySettings /></Suspense> },
               { path: "/settings/departments", element: <Suspense fallback={<PageLoader />}><DepartmentSettings /></Suspense> },
               { path: "/settings/designations", element: <Suspense fallback={<PageLoader />}><DesignationSettings /></Suspense> },
