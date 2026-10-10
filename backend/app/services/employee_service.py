@@ -12,7 +12,7 @@ from app.core.security import hash_password
 from app.models.employee import Employee, EmployeeKyc, EmployeeAsset
 from app.models.leave import Leave
 from app.models.user import User
-from app.models.company import Department, Designation, Shift
+from app.models.company import Company, Department, Designation, Shift
 from app.repository.employee_repo import EmployeeRepository
 from app.repository.user_repo import UserRepository, RefreshTokenRepository
 from app.repository.audit_repo import AuditRepository
@@ -34,11 +34,14 @@ class EmployeeService:
         self.token_repo = RefreshTokenRepository(db)
         self.audit_repo = AuditRepository(db)
 
-    def _validate_refs(self, department_id=None, designation_id=None, shift_id=None) -> None:
-        """Reject nonexistent department/designation/shift ids with a clean 400
-        instead of letting them hit the DB as a foreign-key IntegrityError —
-        a bad value here used to 500 and roll back the *entire* update,
-        silently discarding every other field change in the same request."""
+    def _validate_refs(self, department_id=None, designation_id=None, shift_id=None, company_id=None) -> None:
+        """Reject nonexistent company/department/designation/shift ids with a
+        clean 400 instead of letting them hit the DB as a foreign-key
+        IntegrityError — a bad value here used to 500 and roll back the
+        *entire* update, silently discarding every other field change in
+        the same request."""
+        if company_id is not None and not self.db.get(Company, company_id):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Company ID {company_id} not found")
         if department_id is not None and not self.db.get(Department, department_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Department ID {department_id} not found")
         if designation_id is not None and not self.db.get(Designation, designation_id):
@@ -136,12 +139,13 @@ class EmployeeService:
         if not employee:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
-        before = {"is_active": employee.is_active, "department_id": employee.department_id}
+        before = {"is_active": employee.is_active, "company_id": employee.company_id, "department_id": employee.department_id}
         update_data = payload.model_dump(exclude_unset=True)
         self._validate_refs(
             update_data.get("department_id"),
             update_data.get("designation_id"),
             update_data.get("shift_id"),
+            update_data.get("company_id"),
         )
 
         # Handle role update separately (it's on the User model, not Employee)
@@ -155,7 +159,7 @@ class EmployeeService:
         for field, value in update_data.items():
             setattr(employee, field, value)
 
-        after = {"is_active": employee.is_active, "department_id": employee.department_id}
+        after = {"is_active": employee.is_active, "company_id": employee.company_id, "department_id": employee.department_id}
         self.audit_repo.log(
             user_id=actor_id,
             action="employee_updated",

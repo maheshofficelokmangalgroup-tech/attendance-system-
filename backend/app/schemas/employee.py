@@ -47,6 +47,7 @@ class EmployeeCreate(BaseModel):
 
 
 class EmployeeUpdate(BaseModel):
+    company_id: Optional[int] = None
     department_id: Optional[int] = None
     designation_id: Optional[int] = None
     shift_id: Optional[int] = None

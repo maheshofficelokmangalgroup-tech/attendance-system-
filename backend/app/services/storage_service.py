@@ -73,17 +73,33 @@ class CloudinaryStorageService(BaseStorageService):
         from fastapi import HTTPException, status as http_status
 
         clean_rel = relative_path.replace("\\", "/")
-        public_id = os.path.splitext(clean_rel)[0]
+        ext = os.path.splitext(clean_rel)[1].lower()
 
-        # "image" rejects non-image files (e.g. a PDF degree certificate) —
-        # "auto" lets Cloudinary route each upload to the correct resource
-        # type (image vs raw) based on its actual content.
+        # "auto" lets Cloudinary inspect the content and pick image vs raw —
+        # but for a PDF this is inconsistent: some get classified as "image"
+        # (served under /image/upload/, which Cloudinary's PDF/ZIP security
+        # policy blocks with 401 on this account) and others as "raw" (served
+        # under /raw/upload/, unaffected by that policy) — same file type,
+        # different outcome depending on content. Deciding by extension
+        # ourselves removes that ambiguity: real images always go through
+        # "image" (gets thumbnails/transforms), everything else — PDFs
+        # included — always goes through "raw" (plain byte storage, no
+        # image-pipeline security policy to trip over).
+        image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+        resource_type = "image" if ext in image_exts else "raw"
+        # "image" uploads get their format auto-appended by Cloudinary, so the
+        # extension must be stripped from public_id to avoid a double
+        # extension — "raw" uploads get no such auto-append, so the extension
+        # has to stay in public_id or the returned URL ends with no
+        # extension at all, breaking any "is this a PDF" check downstream.
+        public_id = os.path.splitext(clean_rel)[0] if resource_type == "image" else clean_rel
+
         try:
             result = cloudinary.uploader.upload(
                 file_obj,
                 public_id=public_id,
                 overwrite=True,
-                resource_type="auto",
+                resource_type=resource_type,
             )
         except cloudinary.exceptions.Error as e:
             raise HTTPException(
@@ -96,8 +112,11 @@ class CloudinaryStorageService(BaseStorageService):
         import cloudinary.uploader
 
         clean_rel = relative_path.lstrip("/").replace("uploads/", "")
-        public_id = os.path.splitext(clean_rel)[0]
-        result = cloudinary.uploader.destroy(public_id, resource_type="image")
+        ext = os.path.splitext(clean_rel)[1].lower()
+        image_exts = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+        resource_type = "image" if ext in image_exts else "raw"
+        public_id = os.path.splitext(clean_rel)[0] if resource_type == "image" else clean_rel
+        result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
         return result.get("result") == "ok"
 
 
