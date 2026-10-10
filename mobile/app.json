@@ -12,7 +12,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "AttendHR uses your camera to capture a selfie for attendance check-in/check-out verification.",
         "NSLocationWhenInUseUsageDescription": "AttendHR uses your location to verify you are checking in from an approved office location.",
-        "NSPhotoLibraryUsageDescription": "AttendHR uses your photo library so you can upload your KYC documents (Aadhar, PAN, degree certificate)."
+        "NSPhotoLibraryUsageDescription": "AttendHR uses your photo library so you can upload your profile photo and KYC documents (Aadhar, PAN, degree certificate)."
       }
     },
     "android": {
@@ -35,7 +35,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "AttendHR uses your photo library so you can upload your KYC documents (Aadhar, PAN, degree certificate)."
+          "photosPermission": "AttendHR uses your photo library so you can upload your profile photo and KYC documents (Aadhar, PAN, degree certificate).",
+          "cameraPermission": "AttendHR uses your camera so you can take a profile photo."
         }
       ]
     ]

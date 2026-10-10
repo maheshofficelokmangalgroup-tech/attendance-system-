@@ -140,6 +140,21 @@ def hard_delete_employee(
 
 
 @router.post(
+    "/me/photo",
+    response_model=APIResponse[EmployeeResponse],
+    summary="Self-service: upload/replace my own profile photo",
+)
+def upload_my_photo(
+    photo: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_employee),
+    db: Session = Depends(get_db),
+):
+    svc = EmployeeService(db)
+    data = svc.upload_photo(current_user.employee_id, photo)
+    return APIResponse(data=data, message="Photo uploaded")
+
+
+@router.post(
     "/{employee_id}/photo",
     response_model=APIResponse[EmployeeResponse],
     summary="Upload/replace employee photo",

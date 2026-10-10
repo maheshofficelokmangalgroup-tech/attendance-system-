@@ -59,6 +59,17 @@ export const ProfileScreen = () => {
   // field if that image fails to load.
   const [imageLoadFailed, setImageLoadFailed] = React.useState<Record<string, boolean>>({});
 
+  const [photoPath, setPhotoPath] = React.useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
+  const [showPhotoOptions, setShowPhotoOptions] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!user?.employee_id) return;
+    apiClient.get(`/employees/${user.employee_id}`)
+      .then(({ data }) => setPhotoPath((data?.data ?? data)?.photo_path ?? null))
+      .catch(console.error);
+  }, [user?.employee_id]);
+
   React.useEffect(() => {
     apiClient.get("/employees/me/kyc")
       .then(({ data }) => setKyc((data?.data ?? data) ?? null))
@@ -128,6 +139,68 @@ export const ProfileScreen = () => {
     }
   };
 
+  const uploadPhoto = async (uri: string, mimeType: string, fileName: string) => {
+    hapticLight();
+    setShowPhotoOptions(false);
+    setIsUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      if (Platform.OS === "web") {
+        const blob = await (await fetch(uri)).blob();
+        formData.append("photo", blob, fileName);
+      } else {
+        formData.append("photo", { uri, name: fileName, type: mimeType } as any);
+      }
+
+      const response = await apiClient.post("/employees/me/photo", formData, {
+        headers: Platform.OS === "web" ? { "Content-Type": undefined } : { "Content-Type": "multipart/form-data" },
+      });
+      const updated = (response.data?.data ?? response.data) ?? null;
+      setPhotoPath(updated?.photo_path ?? null);
+      hapticSuccess();
+    } catch (e: any) {
+      hapticError();
+      showAlert(e?.response?.data?.detail ?? "Failed to upload photo");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const pickPhotoFromGallery = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      showAlert("Photo library access is needed to choose a profile photo.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    await uploadPhoto(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "profile.jpg");
+  };
+
+  const takeSelfie = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      showAlert("Camera access is needed to take a profile photo.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [1, 1],
+      cameraType: ImagePicker.CameraType.front,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    await uploadPhoto(asset.uri, asset.mimeType ?? "image/jpeg", asset.fileName ?? "profile.jpg");
+  };
+
   const handleLogout = () => {
     hapticLight();
     // Best-effort: revoke the refresh token server-side so it can't be
@@ -142,11 +215,38 @@ export const ProfileScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <FadeInView style={styles.content} translateY={12}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {user?.full_name?.[0]?.toUpperCase() ?? "U"}
-          </Text>
-        </View>
+        <TouchableOpacity
+          style={styles.avatar}
+          onPress={() => setShowPhotoOptions((v) => !v)}
+          activeOpacity={0.85}
+          disabled={isUploadingPhoto}
+        >
+          {isUploadingPhoto ? (
+            <ActivityIndicator color="#FFF" />
+          ) : photoPath ? (
+            <Image source={{ uri: resolvePhotoUrl(photoPath) }} style={styles.avatarImg} />
+          ) : (
+            <Text style={styles.avatarText}>
+              {user?.full_name?.[0]?.toUpperCase() ?? "U"}
+            </Text>
+          )}
+          <View style={styles.avatarEditBadge}>
+            <Feather name="camera" size={12} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+
+        {showPhotoOptions && (
+          <View style={styles.photoOptionsRow}>
+            <TouchableOpacity style={styles.photoOptionBtn} onPress={takeSelfie}>
+              <Feather name="camera" size={14} color={colors.primary} />
+              <Text style={styles.photoOptionText}>Take Selfie</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.photoOptionBtn} onPress={pickPhotoFromGallery}>
+              <Feather name="image" size={14} color={colors.primary} />
+              <Text style={styles.photoOptionText}>Choose from Gallery</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={styles.name}>{user?.full_name ?? "Employee"}</Text>
         <Text style={styles.email}>{user?.email}</Text>
@@ -240,11 +340,51 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.md,
     marginTop: spacing.lg,
+    overflow: "hidden",
+    position: "relative",
+  },
+  avatarImg: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: {
     color: "#FFF",
     fontSize: 32,
     fontWeight: "700",
+  },
+  photoOptionsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  photoOptionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.button,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  photoOptionText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.primary,
   },
   name: {
     fontSize: 22,
