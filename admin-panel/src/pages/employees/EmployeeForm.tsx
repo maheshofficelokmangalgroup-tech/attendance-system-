@@ -220,6 +220,13 @@ const EmployeeForm: React.FC = () => {
   const [balances, setBalances] = useState<LeaveBalanceItem[]>([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
 
+  // Inline "Add New Department"
+  const [showAddDept, setShowAddDept] = useState(false);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [isAddingDept, setIsAddingDept] = useState(false);
+  const [addDeptError, setAddDeptError] = useState("");
+  const [pendingDeptSelection, setPendingDeptSelection] = useState<number | null>(null);
+
   const {
     register, handleSubmit, watch, reset, setValue,
     formState: { errors, isSubmitting },
@@ -243,17 +250,52 @@ const EmployeeForm: React.FC = () => {
       .catch(console.error);
   }, []);
 
+  const loadDepartments = async (forCompanyId: number) => {
+    const { data } = await apiClient.get(`/departments?company_id=${forCompanyId}&page_size=100`);
+    setDepartments((Array.isArray(data) ? data : (data as { data?: SelectOption[] })?.data) ?? []);
+  };
+
   useEffect(() => {
     // Department/Shift options depend on which company is selected
     if (!companyId) return;
-    Promise.all([
-      apiClient.get(`/departments?company_id=${companyId}&page_size=100`),
-      apiClient.get(`/shifts?company_id=${companyId}`),
-    ]).then(([depts, shiftsRes]) => {
-      setDepartments((Array.isArray(depts.data) ? depts.data : (depts.data as { data?: SelectOption[] })?.data) ?? []);
-      setShifts((Array.isArray(shiftsRes.data) ? shiftsRes.data : shiftsRes.data?.data) ?? []);
-    }).catch(console.error);
+    loadDepartments(companyId);
+    apiClient.get(`/shifts?company_id=${companyId}`)
+      .then(({ data }) => setShifts((Array.isArray(data) ? data : (data as { data?: SelectOption[] })?.data) ?? []))
+      .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  useEffect(() => {
+    if (pendingDeptSelection === null) return;
+    if (departments.some((d) => d.id === pendingDeptSelection)) {
+      setValue("department_id", pendingDeptSelection);
+      setPendingDeptSelection(null);
+    }
+  }, [departments, pendingDeptSelection, setValue]);
+
+  const handleAddDepartment = async () => {
+    if (!newDeptName.trim()) return;
+    setIsAddingDept(true);
+    setAddDeptError("");
+    try {
+      const { data } = await apiClient.post("/departments", { company_id: companyId, name: newDeptName.trim() });
+      const created = unwrap<{ id: number }>(data);
+      await loadDepartments(companyId);
+      // Deferred to the effect below, which fires once React has actually
+      // committed the new <option> to the DOM — react-hook-form's register()
+      // is an uncontrolled ref pattern, so calling setValue right after
+      // setDepartments() (a scheduled, not-yet-committed re-render) would
+      // try to select an option that doesn't exist in the DOM yet and get
+      // silently dropped.
+      setPendingDeptSelection(created.id);
+      setNewDeptName("");
+      setShowAddDept(false);
+    } catch (err: unknown) {
+      setAddDeptError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to add department");
+    } finally {
+      setIsAddingDept(false);
+    }
+  };
 
   useEffect(() => {
     if (deptId) {
@@ -843,6 +885,48 @@ const EmployeeForm: React.FC = () => {
                 <option value="">Select Department</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
+
+              {!showAddDept ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAddDept(true)}
+                  style={{ alignSelf: "flex-start", marginTop: "6px", background: "none", border: "none", cursor: "pointer", color: "var(--color-primary)", fontSize: "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px", padding: 0 }}
+                >
+                  <Plus size={12} /> Add New Department
+                </button>
+              ) : (
+                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      className="input"
+                      placeholder="New department name…"
+                      value={newDeptName}
+                      onChange={(e) => setNewDeptName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddDepartment())}
+                      style={{ flex: 1, fontSize: "13px" }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleAddDepartment}
+                      disabled={isAddingDept || !newDeptName.trim()}
+                      style={{ padding: "6px 12px", fontSize: "12px", whiteSpace: "nowrap" }}
+                    >
+                      {isAddingDept ? "Adding…" : "Add"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => { setShowAddDept(false); setNewDeptName(""); setAddDeptError(""); }}
+                      style={{ padding: "6px 10px", fontSize: "12px" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {addDeptError && <p style={{ fontSize: "11px", color: "#E11D48" }}>{addDeptError}</p>}
+                </div>
+              )}
             </FormField>
             <FormField label="Designation" error={errors.designation_id?.message}>
               <select className="input" {...register("designation_id", { setValueAs: emptyToUndefined })} disabled={!deptId}>
