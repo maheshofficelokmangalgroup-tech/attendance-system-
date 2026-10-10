@@ -39,6 +39,21 @@ def my_balances(
     return APIResponse(data=svc.get_my_balances(employee_id=current_user.employee_id, year=year))
 
 
+@router.get(
+    "/balances/{employee_id}",
+    response_model=APIResponse[List[LeaveBalanceResponse]],
+    summary="Admin/HR: get any employee's leave balances",
+)
+def get_employee_balances(
+    employee_id: int,
+    year: Optional[int] = Query(default=None),
+    current_user: User = Depends(require_permission("approve_final", "leave")),
+    db: Session = Depends(get_db),
+):
+    svc = LeaveService(db)
+    return APIResponse(data=svc.get_my_balances(employee_id=employee_id, year=year))
+
+
 @router.post(
     "/balances/{employee_id}/{leave_type_id}/adjust",
     response_model=APIResponse[LeaveBalanceResponse],
@@ -190,3 +205,18 @@ def admin_cancel_leave(
         data=svc.cancel_leave(leave_id=id, employee_id=-1, actor_user_id=current_user.id, allow_any_employee=True),
         message="Leave request cancelled",
     )
+
+
+@router.delete(
+    "/{id}",
+    response_model=APIResponse[None],
+    summary="Admin/HR: permanently delete a leave request (e.g. erroneous/test data)",
+)
+def delete_leave(
+    id: int,
+    current_user: User = Depends(require_permission("approve_final", "leave")),
+    db: Session = Depends(get_db),
+):
+    svc = LeaveService(db)
+    svc.delete_leave(leave_id=id, actor_user_id=current_user.id)
+    return APIResponse(message="Leave request deleted")

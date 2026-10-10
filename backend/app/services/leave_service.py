@@ -472,6 +472,46 @@ class LeaveService:
         self.db.commit()
         return self._build_leave_response(leave.id)
 
+    def delete_leave(self, leave_id: int, actor_user_id: int) -> None:
+        """
+        Permanently removes a leave request — unlike cancel_leave, no status
+        change is left behind and no notification is sent, so it leaves no
+        trace in the employee's or admin's leave list. Used to purge
+        erroneous/test leave requests rather than record them as cancelled.
+        """
+        leave = self.repo.get_locked(leave_id)
+        if not leave:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave request not found")
+
+        # Release any balance reserved at apply time, unless a prior
+        # reject/cancel already released it.
+        if leave.status not in (LeaveStatusEnum.CANCELLED, LeaveStatusEnum.REJECTED):
+            year = leave.from_date.year
+            bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
+            if bal:
+                bal.used_days = max(0.0, float(bal.used_days) - float(leave.total_days))
+                bal.balance_days = float(bal.total_days) - float(bal.used_days)
+
+        # Attendance records only exist once approved — clear them too.
+        if leave.status == LeaveStatusEnum.APPROVED:
+            self.db.query(Attendance).filter(Attendance.leave_id == leave.id).delete()
+
+        self.audit_repo.log(
+            user_id=actor_user_id,
+            action="leave_deleted",
+            entity_type="Leave",
+            entity_id=leave.id,
+            before_data={
+                "status": leave.status.value,
+                "from_date": str(leave.from_date),
+                "to_date": str(leave.to_date),
+                "total_days": float(leave.total_days),
+            },
+        )
+
+        self.db.delete(leave)
+        self.db.commit()
+
     # ------------------------------------------------------------------
     # Query & Calendar
     # ------------------------------------------------------------------
