@@ -100,6 +100,7 @@ class LeaveBalanceAdjustRequest(BaseModel):
     # leave application record — balance only.
     delta_days: float
     year: Optional[int] = None
+    month: Optional[int] = Field(None, ge=1, le=12)
     reason: str = Field(..., min_length=3)
 
 
@@ -112,6 +113,7 @@ class LeaveBalanceResponse(BaseModel):
     is_paid: Optional[bool] = None
     max_consecutive_days: Optional[int] = None
     year: int
+    month: int = 0
     total_days: float
     used_days: float
     balance_days: float

@@ -1079,6 +1079,11 @@ const EmployeeForm: React.FC = () => {
                   <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", marginTop: "2px" }}>
                     of {b.total_days} · {b.used_days} used
                   </p>
+                  {b.leave_type_code === "COL" && (
+                    <p style={{ fontSize: "10px", color: "#D97706", marginTop: "4px", fontWeight: 600 }}>
+                      This month only — resets next month
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

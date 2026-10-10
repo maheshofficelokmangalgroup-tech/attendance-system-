@@ -40,25 +40,39 @@ class LeaveService:
     # Balances & Accruals
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _balance_period(leave_type: LeaveType, ref_date: date) -> int:
+        """COL (Comp Off Leave) balances are scoped to the single month
+        they're earned in — use within that month or they're forfeited.
+        Every other leave type stays scoped to the whole year (month=0)."""
+        return ref_date.month if leave_type.code == "COL" else 0
+
     def get_my_balances(self, employee_id: int, year: Optional[int] = None) -> List[LeaveBalanceResponse]:
+        today = today_ist()
         if year is None:
-            year = today_ist().year
+            year = today.year
 
         employee = self.employee_repo.get(employee_id)
         if not employee:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
-        # Auto-initialize balances for active leave types if not yet created for this year
+        # Auto-initialize balances for active leave types if not yet created
+        # for this year (and, for COL, the current month specifically — only
+        # meaningful when viewing the current year).
         leave_types = (
             self.db.query(LeaveType)
             .filter(LeaveType.company_id == employee.company_id, LeaveType.is_active == True)  # noqa
             .all()
         )
+        current_month = today.month if year == today.year else 0
         for lt in leave_types:
-            self.repo.get_or_create_balance(employee_id, lt.id, year, float(lt.days_per_year))
+            if lt.code == "COL" and year != today.year:
+                continue
+            month = current_month if lt.code == "COL" else 0
+            self.repo.get_or_create_balance(employee_id, lt.id, year, float(lt.days_per_year), month=month)
         self.db.commit()
 
-        balances = self.repo.get_balances(employee_id, year)
+        balances = self.repo.get_balances(employee_id, year, current_month=current_month)
         results = []
         for b in balances:
             res = LeaveBalanceResponse.model_validate(b)
@@ -83,12 +97,19 @@ class LeaveService:
         leave request list. Used for one-off corrections (e.g. crediting a
         day back without reversing the approved leave that used it).
         """
-        year = payload.year or today_ist().year
+        today = today_ist()
+        year = payload.year or today.year
         lt = self.db.get(LeaveType, leave_type_id)
         if not lt or lt.company_id != self.employee_repo.get(employee_id).company_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid leave type")
 
-        bal = self.repo.get_or_create_balance(employee_id, leave_type_id, year, float(lt.days_per_year))
+        if payload.month is not None:
+            month = payload.month
+        elif lt.code == "COL":
+            month = today.month
+        else:
+            month = 0
+        bal = self.repo.get_or_create_balance(employee_id, leave_type_id, year, float(lt.days_per_year), month=month)
         before = {"used_days": float(bal.used_days), "balance_days": float(bal.balance_days)}
 
         bal.used_days = max(0.0, float(bal.used_days) - payload.delta_days)
@@ -170,8 +191,18 @@ class LeaveService:
                     detail=f"{lt.name} can only be requested for up to {lt.max_consecutive_days} consecutive day(s) at a time. You selected {day_span} day(s).",
                 )
 
+        # COL is earned and must be used within the same calendar month it's
+        # earned in — a request spanning two months would straddle two
+        # separate (and differently-funded) balance buckets.
+        if lt.code == "COL" and (payload.from_date.year, payload.from_date.month) != (payload.to_date.year, payload.to_date.month):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{lt.name} must be applied for within a single month — it expires at the end of the month it's earned in.",
+            )
+
         year = payload.from_date.year
-        balance_entry = self.repo.get_or_create_balance(employee_id, lt.id, year, float(lt.days_per_year))
+        month = self._balance_period(lt, payload.from_date)
+        balance_entry = self.repo.get_or_create_balance(employee_id, lt.id, year, float(lt.days_per_year), month=month)
 
         # Check balance if leave type is paid & requires balance
         effective_leave_type = lt
@@ -200,7 +231,10 @@ class LeaveService:
         # approval happens.
         effective_balance = (
             balance_entry if effective_leave_type.id == lt.id
-            else self.repo.get_or_create_balance(employee_id, effective_leave_type.id, year, float(effective_leave_type.days_per_year))
+            else self.repo.get_or_create_balance(
+                employee_id, effective_leave_type.id, year, float(effective_leave_type.days_per_year),
+                month=self._balance_period(effective_leave_type, payload.from_date),
+            )
         )
         effective_balance.used_days = float(effective_balance.used_days) + float(effective_total_days)
         effective_balance.balance_days = max(0.0, float(effective_balance.total_days) - float(effective_balance.used_days))
@@ -387,7 +421,8 @@ class LeaveService:
 
         # Balance was reserved at apply time — release it back.
         year = leave.from_date.year
-        bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
+        month = self._balance_period(leave.leave_type, leave.from_date)
+        bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year, month)
         if bal:
             bal.used_days = max(0.0, float(bal.used_days) - float(leave.total_days))
             bal.balance_days = float(bal.total_days) - float(bal.used_days)
@@ -441,7 +476,8 @@ class LeaveService:
         # Balance was reserved at apply time regardless of stage — always
         # release it back on cancel.
         year = leave.from_date.year
-        bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
+        month = self._balance_period(leave.leave_type, leave.from_date)
+        bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year, month)
         if bal:
             bal.used_days = max(0.0, float(bal.used_days) - float(leave.total_days))
             bal.balance_days = float(bal.total_days) - float(bal.used_days)
@@ -487,7 +523,8 @@ class LeaveService:
         # reject/cancel already released it.
         if leave.status not in (LeaveStatusEnum.CANCELLED, LeaveStatusEnum.REJECTED):
             year = leave.from_date.year
-            bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year)
+            month = self._balance_period(leave.leave_type, leave.from_date)
+            bal = self.repo.get_balance_for_type_locked(leave.employee_id, leave.leave_type_id, year, month)
             if bal:
                 bal.used_days = max(0.0, float(bal.used_days) - float(leave.total_days))
                 bal.balance_days = float(bal.total_days) - float(bal.used_days)
@@ -596,7 +633,8 @@ class LeaveService:
         if leave.leave_type:
             resp.leave_type = LeaveTypeResponse.model_validate(leave.leave_type)
 
-        bal = self.repo.get_balance_for_type(leave.employee_id, leave.leave_type_id, leave.from_date.year)
+        bal_month = self._balance_period(leave.leave_type, leave.from_date) if leave.leave_type else 0
+        bal = self.repo.get_balance_for_type(leave.employee_id, leave.leave_type_id, leave.from_date.year, bal_month)
         if bal:
             resp.applicant_balance_days = float(bal.balance_days)
             resp.applicant_used_days = float(bal.used_days)

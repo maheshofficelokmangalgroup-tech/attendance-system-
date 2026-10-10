@@ -525,6 +525,11 @@ const LeaveManagement: React.FC = () => {
                         <div style={{ height: "100%", width: `${pctUsed}%`, background: "var(--color-primary)", borderRadius: "9999px" }} />
                       </div>
                     </div>
+                    {b.leave_type_code === "COL" && (
+                      <p style={{ fontSize: "11px", color: "#D97706", fontWeight: 600 }}>
+                        This month only — resets next month
+                      </p>
+                    )}
                   </div>
                 );
               })}

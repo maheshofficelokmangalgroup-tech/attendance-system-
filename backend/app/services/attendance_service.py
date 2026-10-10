@@ -468,7 +468,7 @@ class AttendanceService:
         )
         if not lt:
             return
-        bal = self.leave_repo.get_or_create_balance(employee.id, lt.id, work_date.year, 0.0)
+        bal = self.leave_repo.get_or_create_balance(employee.id, lt.id, work_date.year, 0.0, month=work_date.month)
         bal.total_days = float(bal.total_days) + 1.0
         bal.balance_days = float(bal.total_days) - float(bal.used_days)
 

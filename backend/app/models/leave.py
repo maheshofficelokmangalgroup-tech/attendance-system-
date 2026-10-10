@@ -101,6 +101,10 @@ class LeaveBalance(Base):
         Integer, ForeignKey("leave_types.id", ondelete="CASCADE"), nullable=False, index=True
     )
     year: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 0 = year-scoped balance (CL/SL/PL/PWL, unchanged); 1-12 = scoped to that
+    # single calendar month only — used for COL (Comp Off Leave), which is
+    # earned and must be used within the same month it's earned, or forfeited.
+    month: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_days: Mapped[float] = mapped_column(Numeric(6, 2), default=0, nullable=False)
     used_days: Mapped[float] = mapped_column(Numeric(6, 2), default=0, nullable=False)
     balance_days: Mapped[float] = mapped_column(Numeric(6, 2), default=0, nullable=False)
@@ -110,8 +114,8 @@ class LeaveBalance(Base):
 
     __table_args__ = (
         UniqueConstraint(
-            "employee_id", "leave_type_id", "year",
-            name="uq_leave_balance_employee_type_year"
+            "employee_id", "leave_type_id", "year", "month",
+            name="uq_leave_balance_employee_type_year_month"
         ),
     )
 

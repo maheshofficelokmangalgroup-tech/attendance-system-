@@ -47,6 +47,7 @@ export interface LeaveBalanceItem {
   leave_type_name?: string;
   leave_type_code?: string;
   year: number;
+  month: number;
   total_days: number;
   used_days: number;
   balance_days: number;

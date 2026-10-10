@@ -18,47 +18,54 @@ class LeaveRepository(BaseRepository[Leave]):
     # Leave Balances
     # ------------------------------------------------------------------
 
-    def get_balances(self, employee_id: int, year: int) -> List[LeaveBalance]:
+    def get_balances(self, employee_id: int, year: int, current_month: int = 0) -> List[LeaveBalance]:
+        """month=0 rows (year-scoped types) are always included; a
+        month-scoped type (COL) only contributes its `current_month` row,
+        not every month it's ever had activity in."""
         return (
             self.db.query(LeaveBalance)
             .options(joinedload(LeaveBalance.leave_type))
             .filter(
                 LeaveBalance.employee_id == employee_id,
                 LeaveBalance.year == year,
+                LeaveBalance.month.in_({0, current_month}),
             )
             .all()
         )
 
-    def get_balance_for_type(self, employee_id: int, leave_type_id: int, year: int) -> Optional[LeaveBalance]:
+    def get_balance_for_type(self, employee_id: int, leave_type_id: int, year: int, month: int = 0) -> Optional[LeaveBalance]:
         return (
             self.db.query(LeaveBalance)
             .filter(
                 LeaveBalance.employee_id == employee_id,
                 LeaveBalance.leave_type_id == leave_type_id,
                 LeaveBalance.year == year,
+                LeaveBalance.month == month,
             )
             .first()
         )
 
-    def get_balance_for_type_locked(self, employee_id: int, leave_type_id: int, year: int) -> Optional[LeaveBalance]:
+    def get_balance_for_type_locked(self, employee_id: int, leave_type_id: int, year: int, month: int = 0) -> Optional[LeaveBalance]:
         return (
             self.db.query(LeaveBalance)
             .filter(
                 LeaveBalance.employee_id == employee_id,
                 LeaveBalance.leave_type_id == leave_type_id,
                 LeaveBalance.year == year,
+                LeaveBalance.month == month,
             )
             .with_for_update()
             .first()
         )
 
-    def get_or_create_balance(self, employee_id: int, leave_type_id: int, year: int, default_days: float) -> LeaveBalance:
-        bal = self.get_balance_for_type(employee_id, leave_type_id, year)
+    def get_or_create_balance(self, employee_id: int, leave_type_id: int, year: int, default_days: float, month: int = 0) -> LeaveBalance:
+        bal = self.get_balance_for_type(employee_id, leave_type_id, year, month)
         if not bal:
             bal = LeaveBalance(
                 employee_id=employee_id,
                 leave_type_id=leave_type_id,
                 year=year,
+                month=month,
                 total_days=default_days,
                 used_days=0.0,
                 balance_days=default_days,
