@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.auth.dependencies import get_current_user, require_permission
+from app.auth.dependencies import get_current_user, get_current_active_employee, require_permission
 from app.models.user import User
 from app.services.employee_service import EmployeeService
 from app.schemas.employee import (
@@ -153,6 +153,42 @@ def upload_employee_photo(
     svc = EmployeeService(db)
     data = svc.upload_photo(employee_id, photo)
     return APIResponse(data=data, message="Photo uploaded")
+
+
+@router.get(
+    "/me/kyc",
+    response_model=APIResponse[Optional[EmployeeKycResponse]],
+    summary="Self-service: get my own KYC & document upload status",
+)
+def get_my_kyc(
+    current_user: User = Depends(get_current_active_employee),
+    db: Session = Depends(get_db),
+):
+    svc = EmployeeService(db)
+    return APIResponse(data=svc.get_kyc(current_user.employee_id))
+
+
+@router.post(
+    "/me/kyc/documents",
+    response_model=APIResponse[EmployeeKycResponse],
+    summary="Self-service: upload my own Aadhar front/back, PAN, degree certificate",
+)
+def upload_my_kyc_documents(
+    request: Request,
+    aadhar_front: Optional[UploadFile] = File(None),
+    aadhar_back: Optional[UploadFile] = File(None),
+    pan_photo: Optional[UploadFile] = File(None),
+    degree_certificate: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_active_employee),
+    db: Session = Depends(get_db),
+):
+    svc = EmployeeService(db)
+    data = svc.upload_kyc_documents(
+        current_user.employee_id, aadhar_front=aadhar_front, aadhar_back=aadhar_back, pan_photo=pan_photo,
+        degree_certificate=degree_certificate,
+        actor_id=current_user.id, ip=request.client.host if request.client else None,
+    )
+    return APIResponse(data=data, message="Documents uploaded")
 
 
 @router.get(
