@@ -27,9 +27,10 @@ interface Balance {
   max_consecutive_days?: number | null;
 }
 
-// Only these three are offered when applying — Casual/Sick leave (paid, capped
-// per request) and PWL/unpaid leave (always available, no balance cap).
-const APPLICABLE_CODES = ["CL", "SL", "PWL"];
+// Only these are offered when applying — Casual/Sick leave (paid, capped per
+// request), COL/Comp Off (paid, earned by working Sundays, usable only within
+// the month it's earned), and PWL/unpaid leave (always available, no balance cap).
+const APPLICABLE_CODES = ["CL", "SL", "COL", "PWL"];
 
 export const ApplyLeaveScreen = ({ navigation }: any) => {
   const [balances, setBalances] = useState<Balance[]>([]);
