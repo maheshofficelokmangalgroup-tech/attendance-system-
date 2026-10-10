@@ -184,7 +184,14 @@ export const ApplyLeaveScreen = ({ navigation }: any) => {
                   {b.leave_type_code ?? "LEAVE"}
                 </Text>
                 <Text style={[styles.balanceChipDays, isSelected && styles.balanceChipDaysSelected]}>
-                  {b.is_paid === false ? `${b.used_days} taken` : isExhausted ? "Exhausted" : `${b.balance_days} days`}
+                  {b.is_paid === false
+                    ? `${b.used_days} taken`
+                    // COL always shows the actual count (0, 1, 2…) instead of
+                    // "Exhausted" — it's a running monthly count, not a fixed
+                    // quota that's been used up.
+                    : b.leave_type_code === "COL"
+                    ? `${b.balance_days} days`
+                    : isExhausted ? "Exhausted" : `${b.balance_days} days`}
                 </Text>
               </TouchableOpacity>
             );
