@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, UserPlus, UserCheck, UserX } from "lucide-react";
+import { Plus, UserPlus, UserCheck, UserX, Filter } from "lucide-react";
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import StatusBadge from "@/components/ui/StatusBadge";
 import apiClient from "@/api/client";
@@ -16,6 +16,7 @@ interface Employee {
   employment_type: string;
   is_active: boolean;
 }
+interface Company { id: number; name: string; }
 
 const EmployeeList: React.FC = () => {
   const navigate = useNavigate();
@@ -23,11 +24,18 @@ const EmployeeList: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
+
+  useEffect(() => {
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
 
   const loadEmployees = () => {
     setIsLoading(true);
-    // In production, company_id comes from the logged-in user's context
-    apiClient.get("/employees?company_id=1&page_size=100")
+    apiClient.get(`/employees?company_id=${companyId}&page_size=100`)
       .then(({ data }) => {
         setEmployees(Array.isArray(data) ? data : data?.data ?? []);
       })
@@ -37,7 +45,8 @@ const EmployeeList: React.FC = () => {
 
   useEffect(() => {
     loadEmployees();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   const handleToggleActive = async (emp: Employee, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -168,6 +177,19 @@ const EmployeeList: React.FC = () => {
           {error}
         </div>
       )}
+
+      <div className="card" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" }}>
+        <Filter size={16} color="var(--color-text-secondary)" />
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+        <select
+          className="input"
+          style={{ width: "220px" }}
+          value={companyId}
+          onChange={(e) => setCompanyId(Number(e.target.value))}
+        >
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
 
       <div className="card" style={{ padding: "24px" }}>
         <DataTable<Employee>
