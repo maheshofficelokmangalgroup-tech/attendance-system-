@@ -70,7 +70,7 @@ export interface GenericReportData {
   total_records: number;
 }
 
-export const fetchDashboardAnalytics = async (company_id: number = 1): Promise<DashboardAnalyticsData> => {
+export const fetchDashboardAnalytics = async (company_id?: number): Promise<DashboardAnalyticsData> => {
   const response = await apiClient.get("/reports/dashboard-analytics", { params: { company_id } });
   return response.data;
 };

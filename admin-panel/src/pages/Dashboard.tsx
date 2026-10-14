@@ -1,24 +1,37 @@
 import React, { useEffect, useState } from "react";
-import { Users, Clock, CalendarCheck, UserCheck, UserX, Home, MapPin, Activity } from "lucide-react";
+import { Users, Clock, CalendarCheck, UserCheck, UserX, Home, MapPin, Activity, Filter } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import KPICard from "@/components/ui/KPICard";
 import { fetchDashboardAnalytics, DashboardAnalyticsData } from "@/api/reports";
+import apiClient from "@/api/client";
 
 const COLORS = ["#4F46E5", "#059669", "#D97706", "#7C3AED", "#0891B2", "#E11D48"];
+
+interface Company { id: number; name: string; }
 
 const Dashboard: React.FC = () => {
   const [data, setData] = useState<DashboardAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  // "all" aggregates across every company — the default view.
+  const [companyId, setCompanyId] = useState<number | "all">("all");
 
   useEffect(() => {
-    fetchDashboardAnalytics(1)
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    setIsLoading(true);
+    fetchDashboardAnalytics(companyId === "all" ? undefined : companyId)
       .then(setData)
       .catch(console.error)
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [companyId]);
 
   const kpis = data?.kpis ?? {
     total_employees: 0,
@@ -48,13 +61,28 @@ const Dashboard: React.FC = () => {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
       {/* Page Header */}
-      <div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "4px" }}>
-          Dashboard Analytics
-        </h1>
-        <p style={{ fontSize: "14px", color: "var(--color-text-secondary)" }}>
-          Real-time attendance metrics — {new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-        </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: "26px", fontWeight: 700, color: "var(--color-text-primary)", marginBottom: "4px" }}>
+            Dashboard Analytics
+          </h1>
+          <p style={{ fontSize: "14px", color: "var(--color-text-secondary)" }}>
+            Real-time attendance metrics — {new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          </p>
+        </div>
+        <div className="card" style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
+          <Filter size={16} color="var(--color-text-secondary)" />
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+          <select
+            className="input"
+            style={{ width: "200px" }}
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value === "all" ? "all" : Number(e.target.value))}
+          >
+            <option value="all">All Companies</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* KPI Row */}

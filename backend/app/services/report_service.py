@@ -32,24 +32,27 @@ class ReportService:
     # Real-Time Dashboard Analytics
     # ------------------------------------------------------------------
 
-    def get_dashboard_analytics(self, company_id: int) -> DashboardAnalyticsResponse:
+    def get_dashboard_analytics(self, company_id: Optional[int] = None) -> DashboardAnalyticsResponse:
         today = today_ist()
 
+        # company_id=None aggregates across every company instead of scoping
+        # to one — used for the Dashboard's "All Companies" view.
+        emp_q = self.db.query(Employee).filter(Employee.is_active == True)  # noqa
+        if company_id is not None:
+            emp_q = emp_q.filter(Employee.company_id == company_id)
+
         # 1. Total active employees
-        total_employees = (
-            self.db.query(Employee)
-            .filter(Employee.company_id == company_id, Employee.is_active == True)  # noqa
-            .count()
-        )
+        total_employees = emp_q.count()
 
         # Today's attendance status counts
-        counts = (
+        counts_q = (
             self.db.query(Attendance.status, func.count(Attendance.id))
             .join(Employee, Attendance.employee_id == Employee.id)
-            .filter(Employee.company_id == company_id, Attendance.date == today)
-            .group_by(Attendance.status)
-            .all()
+            .filter(Attendance.date == today)
         )
+        if company_id is not None:
+            counts_q = counts_q.filter(Employee.company_id == company_id)
+        counts = counts_q.group_by(Attendance.status).all()
 
         status_map = {st: count for st, count in counts}
 
@@ -78,13 +81,14 @@ class ReportService:
         trend_items = []
         curr_d = start_date
         while curr_d <= today:
-            d_counts = (
+            d_counts_q = (
                 self.db.query(Attendance.status, func.count(Attendance.id))
                 .join(Employee, Attendance.employee_id == Employee.id)
-                .filter(Employee.company_id == company_id, Attendance.date == curr_d)
-                .group_by(Attendance.status)
-                .all()
+                .filter(Attendance.date == curr_d)
             )
+            if company_id is not None:
+                d_counts_q = d_counts_q.filter(Employee.company_id == company_id)
+            d_counts = d_counts_q.group_by(Attendance.status).all()
             d_map = {st: count for st, count in d_counts}
 
             p = d_map.get(AttendanceStatusEnum.PRESENT, 0) + d_map.get(AttendanceStatusEnum.LATE, 0)
@@ -106,11 +110,10 @@ class ReportService:
             curr_d += timedelta(days=1)
 
         # 3. Department Distribution Breakdowns
-        depts = (
-            self.db.query(Department)
-            .filter(Department.company_id == company_id, Department.is_active == True)  # noqa
-            .all()
-        )
+        dept_q = self.db.query(Department).filter(Department.is_active == True)  # noqa
+        if company_id is not None:
+            dept_q = dept_q.filter(Department.company_id == company_id)
+        depts = dept_q.all()
         dept_dist = []
         for d in depts:
             emp_cnt = self.db.query(Employee).filter(Employee.department_id == d.id, Employee.is_active == True).count()  # noqa
@@ -134,14 +137,14 @@ class ReportService:
             )
 
         # 4. Live Activity Feed (latest 10 logs)
-        device_logs = (
+        logs_q = (
             self.db.query(AttendanceDeviceLog)
             .join(Employee, AttendanceDeviceLog.employee_id == Employee.id)
-            .filter(Employee.company_id == company_id)
             .order_by(AttendanceDeviceLog.captured_at.desc())
-            .limit(10)
-            .all()
         )
+        if company_id is not None:
+            logs_q = logs_q.filter(Employee.company_id == company_id)
+        device_logs = logs_q.limit(10).all()
         activity_items = []
         for log in device_logs:
             emp = self.db.get(Employee, log.employee_id)

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/reports", tags=["Reports & Analytics"])
 
 @router.get("/dashboard-analytics", response_model=APIResponse[DashboardAnalyticsResponse], summary="Get real-time dashboard analytics, trends, and feed")
 def dashboard_analytics(
-    company_id: int = Query(default=1),
+    company_id: Optional[int] = Query(default=None, description="Omit to aggregate across all companies"),
     current_user: User = Depends(require_permission("view", "report")),
     db: Session = Depends(get_db),
 ):
