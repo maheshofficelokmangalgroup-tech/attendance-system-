@@ -1,7 +1,5 @@
-const CACHE_NAME = 'attendhr-pwa-v2';
+const CACHE_NAME = 'attendhr-pwa-v3';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/favicon.svg'
 ];
@@ -54,6 +52,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // The HTML shell (every route — including client-side ones via the Vercel
+  // SPA rewrite — resolves here on a fresh navigation) must always be
+  // revalidated against the network first. It's what pins down *which*
+  // content-hashed JS/CSS chunk filenames are current; a new deploy renames
+  // those chunks, so serving a stale cached copy of the shell makes it
+  // reference chunk files that no longer exist on the server — surfacing as
+  // "Failed to fetch dynamically imported module" the moment a user opens a
+  // route they didn't already have cached from before the deploy.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  // Content-hashed static assets (/assets/*.js, *.css) are safe to serve
+  // cache-first — their filename changes whenever their content does, so a
+  // cached copy can never be stale for a given URL.
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
