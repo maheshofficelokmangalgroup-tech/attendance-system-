@@ -23,8 +23,8 @@ export interface WfhItem {
   updated_at: string;
 }
 
-export const fetchPendingWfh = async (): Promise<WfhItem[]> => {
-  const response = await apiClient.get("/wfh/pending");
+export const fetchPendingWfh = async (companyId: number): Promise<WfhItem[]> => {
+  const response = await apiClient.get("/wfh/pending", { params: { company_id: companyId } });
   return response.data;
 };
 

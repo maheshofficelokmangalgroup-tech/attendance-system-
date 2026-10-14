@@ -228,7 +228,9 @@ class WfhService:
     # ------------------------------------------------------------------
 
     def list_my(self, employee_id: int, page: int = 1, page_size: int = 20) -> PaginatedResponse[WfhResponse]:
-        return self.list_all(company_id=1, page=page, page_size=page_size, employee_id=employee_id)
+        employee = self.employee_repo.get(employee_id)
+        company_id = employee.company_id if employee else 0
+        return self.list_all(company_id=company_id, page=page, page_size=page_size, employee_id=employee_id)
 
     def list_all(
         self,

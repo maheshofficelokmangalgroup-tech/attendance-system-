@@ -164,7 +164,7 @@ const EmployeeList: React.FC = () => {
         </div>
         <button
           className="btn-primary"
-          onClick={() => navigate("/employees/new")}
+          onClick={() => navigate(`/employees/new?company_id=${companyId}`)}
           id="add-employee-btn"
         >
           <UserPlus size={16} />
@@ -203,7 +203,7 @@ const EmployeeList: React.FC = () => {
             icon: <UserPlus size={40} color="var(--color-text-secondary)" />,
             title: "No employees yet",
             action: (
-              <button className="btn-primary" onClick={() => navigate("/employees/new")}>
+              <button className="btn-primary" onClick={() => navigate(`/employees/new?company_id=${companyId}`)}>
                 <Plus size={15} /> Add First Employee
               </button>
             ),

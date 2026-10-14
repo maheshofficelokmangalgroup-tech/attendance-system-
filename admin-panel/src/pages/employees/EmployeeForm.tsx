@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -170,7 +170,9 @@ const DocUploadField: React.FC<{
 const EmployeeForm: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const isEdit = Boolean(id);
+  const companyIdFromQuery = Number(searchParams.get("company_id")) || undefined;
 
   const [companies, setCompanies] = useState<SelectOption[]>([]);
   const [departments, setDepartments] = useState<SelectOption[]>([]);
@@ -231,12 +233,17 @@ const EmployeeForm: React.FC = () => {
   const [addDeptError, setAddDeptError] = useState("");
   const [pendingDeptSelection, setPendingDeptSelection] = useState<number | null>(null);
 
+  // Create mode only: which company to land the "Company" <select> on once
+  // the options have actually loaded (see the effect below for why this is
+  // deferred rather than applied immediately).
+  const [pendingCompanySelection, setPendingCompanySelection] = useState<number | null>(null);
+
   const {
-    register, handleSubmit, watch, reset, setValue,
+    register, handleSubmit, watch, reset, setValue, getValues,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { company_id: 1, employment_type: "full_time" },
+    defaultValues: { company_id: companyIdFromQuery ?? 1, employment_type: "full_time" },
   });
 
   const companyId = watch("company_id");
@@ -250,9 +257,35 @@ const EmployeeForm: React.FC = () => {
   useEffect(() => {
     // Companies for the selector — loaded once
     apiClient.get("/companies")
-      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: SelectOption[] })?.data) ?? []))
+      .then(({ data }) => {
+        const list = (Array.isArray(data) ? data : (data as { data?: SelectOption[] })?.data) ?? [];
+        setCompanies(list);
+        // In create mode, the form mounts with a default company_id (from
+        // the ?company_id= query param, or a fallback) before this list has
+        // loaded, so the <select> has no <option>s yet to apply it to. Also,
+        // if that default isn't a real/active company, land on the first
+        // real one instead of silently saving the new employee under a
+        // company_id that doesn't match what the admin intended — there's
+        // no server-side error for this, so it would otherwise fail
+        // completely silently. Deferred to the effect below (same reason as
+        // pendingDeptSelection: setValue needs the <option>s to actually
+        // exist in the DOM first).
+        if (!isEdit && list.length > 0) {
+          const current = getValues("company_id");
+          setPendingCompanySelection(list.some((c) => c.id === current) ? current : list[0].id);
+        }
+      })
       .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (pendingCompanySelection === null) return;
+    if (companies.some((c) => c.id === pendingCompanySelection)) {
+      setValue("company_id", pendingCompanySelection);
+      setPendingCompanySelection(null);
+    }
+  }, [companies, pendingCompanySelection, setValue]);
 
   const loadDepartments = async (forCompanyId: number) => {
     const { data } = await apiClient.get(`/departments?company_id=${forCompanyId}&page_size=100`);

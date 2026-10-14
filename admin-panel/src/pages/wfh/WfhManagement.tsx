@@ -40,9 +40,14 @@ const WfhStatusBadge: React.FC<{ status: string }> = ({ status }) => {
 type Tab = "approvals" | "all_requests";
 
 interface Department { id: number; name: string; }
+interface Company { id: number; name: string; }
 
 const WfhManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>("approvals");
+
+  // Company filter — applies to both tabs below
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
 
   // Approval Queue State
   const [pending, setPending] = useState<WfhItem[]>([]);
@@ -63,7 +68,7 @@ const WfhManagement: React.FC = () => {
 
   const loadPending = () => {
     setIsPendingLoading(true);
-    fetchPendingWfh()
+    fetchPendingWfh(companyId)
       .then((data) => setPending(Array.isArray(data) ? data : (data as any)?.data ?? []))
       .catch(console.error)
       .finally(() => setIsPendingLoading(false));
@@ -71,7 +76,7 @@ const WfhManagement: React.FC = () => {
 
   const loadAllRequests = () => {
     setIsRequestsLoading(true);
-    const params: any = { company_id: 1, page_size: 100 };
+    const params: any = { company_id: companyId, page_size: 100 };
     if (deptFilter) params.department_id = deptFilter;
     if (statusFilter) params.status = statusFilter;
 
@@ -82,16 +87,26 @@ const WfhManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    apiClient.get("/departments?company_id=1&page_size=100")
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    // Company changed — departments belong to a specific company, so the
+    // dropdown and any previously-selected filter must reset together.
+    setDeptFilter("");
+    apiClient.get(`/departments?company_id=${companyId}&page_size=100`)
       .then(({ data }) => setDepartments(Array.isArray(data) ? data : data?.data ?? []))
       .catch(console.error);
 
     loadPending();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   useEffect(() => {
     if (activeTab === "all_requests") loadAllRequests();
-  }, [activeTab, deptFilter, statusFilter]);
+  }, [activeTab, deptFilter, statusFilter, companyId]);
 
   const handleAction = async () => {
     if (!selectedItem || !actionType) return;
@@ -175,6 +190,20 @@ const WfhManagement: React.FC = () => {
             Single-stage approval — approving marks the requested dates' attendance as WFH
           </p>
         </div>
+      </div>
+
+      {/* Company Filter — applies to both the approvals queue and all-requests list */}
+      <div className="card" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" }}>
+        <Filter size={16} color="var(--color-text-secondary)" />
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+        <select
+          className="input"
+          style={{ width: "220px" }}
+          value={companyId}
+          onChange={(e) => setCompanyId(Number(e.target.value))}
+        >
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       {/* Navigation Tabs */}
