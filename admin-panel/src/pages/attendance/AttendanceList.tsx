@@ -38,6 +38,8 @@ const AttendanceList: React.FC = () => {
   const [isRegularizeMode, setIsRegularizeMode] = useState(false);
   const [regStatus, setRegStatus] = useState<string>("present");
   const [regRemarks, setRegRemarks] = useState<string>("");
+  const [regCheckInTime, setRegCheckInTime] = useState<string>("");
+  const [regCheckOutTime, setRegCheckOutTime] = useState<string>("");
   const [regSubmitting, setRegSubmitting] = useState(false);
 
   const loadData = () => {
@@ -93,6 +95,8 @@ const AttendanceList: React.FC = () => {
       await regularizeAttendance(selectedItem.id, {
         status: regStatus,
         remarks: regRemarks.trim(),
+        check_in_time: regCheckInTime || undefined,
+        check_out_time: regCheckOutTime || undefined,
       });
       setIsModalOpen(false);
       loadData();
@@ -370,7 +374,14 @@ const AttendanceList: React.FC = () => {
               <button
                 className="btn-ghost"
                 style={{ padding: "6px 12px", fontSize: "13px" }}
-                onClick={() => setIsRegularizeMode((v) => !v)}
+                onClick={() => {
+                  const next = !isRegularizeMode;
+                  setIsRegularizeMode(next);
+                  if (next) {
+                    setRegCheckInTime(selectedItem.check_in_time ? selectedItem.check_in_time.slice(0, 5) : "");
+                    setRegCheckOutTime(selectedItem.check_out_time ? selectedItem.check_out_time.slice(0, 5) : "");
+                  }
+                }}
               >
                 <Edit3 size={14} /> Regularize
               </button>
@@ -411,7 +422,18 @@ const AttendanceList: React.FC = () => {
                     <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)" }}>Reason / Remarks *</label>
                     <input className="input" placeholder="e.g. Device GPS glitch confirmed by manager" value={regRemarks} onChange={(e) => setRegRemarks(e.target.value)} />
                   </div>
+                  <div>
+                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)" }}>Check-In Time</label>
+                    <input className="input" type="time" value={regCheckInTime} onChange={(e) => setRegCheckInTime(e.target.value)} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-secondary)" }}>Check-Out Time</label>
+                    <input className="input" type="time" value={regCheckOutTime} onChange={(e) => setRegCheckOutTime(e.target.value)} />
+                  </div>
                 </div>
+                <p style={{ fontSize: "11px", color: "var(--color-text-secondary)" }}>
+                  Check-in/out times are pre-filled from the recorded values — only change them if correcting an inaccurate timestamp.
+                </p>
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
                   <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: "12px" }} onClick={() => setIsRegularizeMode(false)}>Cancel</button>
                   <button className="btn-primary" style={{ padding: "6px 14px", fontSize: "12px" }} disabled={regSubmitting || !regRemarks.trim()} onClick={handleRegularizeSubmit}>
