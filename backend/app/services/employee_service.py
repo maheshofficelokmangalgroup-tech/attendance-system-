@@ -148,6 +148,28 @@ class EmployeeService:
             update_data.get("company_id"),
         )
 
+        # Guard: employee_code must stay unique across employees
+        new_code = update_data.get("employee_code")
+        if new_code is not None:
+            existing = self.repo.get_by_code(new_code)
+            if existing and existing.id != employee_id:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Employee code '{new_code}' already exists")
+
+        # Guard: email must stay unique, and the linked login account's email
+        # has to move in lockstep — /auth/login matches against User.email,
+        # not Employee.email, so updating only the latter would silently
+        # leave the employee unable to log in with their new address (while
+        # the old, now-hidden one still worked).
+        new_email = update_data.get("email")
+        if new_email is not None:
+            new_email = new_email.lower()
+            update_data["email"] = new_email
+            existing = self.repo.get_by_email(new_email)
+            if existing and existing.id != employee_id:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Email '{new_email}' already in use")
+            if employee.user:
+                employee.user.email = new_email
+
         # Handle role update separately (it's on the User model, not Employee)
         role_id = update_data.pop("role_id", None)
         if role_id is not None:

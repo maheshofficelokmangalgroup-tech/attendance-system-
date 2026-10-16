@@ -471,7 +471,7 @@ const EmployeeForm: React.FC = () => {
     } = values;
     try {
       if (isEdit) {
-        const { password: _password, employee_code: _code, email: _email, ...updatePayload } = corePayload;
+        const { password: _password, ...updatePayload } = corePayload;
         await apiClient.put(`/employees/${id}`, updatePayload);
         await saveKycIfNeeded(Number(id), values);
         await uploadPhotoIfNeeded(Number(id));
@@ -701,8 +701,7 @@ const EmployeeForm: React.FC = () => {
                 type="email"
                 {...register("email")}
                 placeholder="john.doe@company.com"
-                disabled={isEdit}
-                title={isEdit ? "Email can't be changed here — it's the employee's login username" : undefined}
+                title={isEdit ? "This is also the employee's login — changing it changes what they sign in with" : undefined}
               />
             </FormField>
             <FormField label="Phone" error={errors.phone?.message}>
@@ -712,7 +711,7 @@ const EmployeeForm: React.FC = () => {
 
           <div style={grid2}>
             <FormField label="Employee Code" required error={errors.employee_code?.message}>
-              <input className="input" {...register("employee_code")} placeholder="EMP001" disabled={isEdit} />
+              <input className="input" {...register("employee_code")} placeholder="EMP001" />
             </FormField>
             <FormField label="Date of Joining" required error={errors.date_of_joining?.message}>
               <input className="input" type="date" {...register("date_of_joining")} />

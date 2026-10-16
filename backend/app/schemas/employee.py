@@ -52,10 +52,13 @@ class EmployeeUpdate(BaseModel):
     designation_id: Optional[int] = None
     shift_id: Optional[int] = None
     manager_id: Optional[int] = None
+    employee_code: Optional[str] = Field(None, min_length=1, max_length=50)
     first_name: Optional[str] = Field(None, min_length=1, max_length=100)
     last_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
     date_of_birth: Optional[date] = None
+    date_of_joining: Optional[date] = None
     gender: Optional[GenderEnum] = None
     permanent_address: Optional[str] = None
     present_address: Optional[str] = None
