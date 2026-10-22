@@ -71,9 +71,9 @@ export const fetchApprovalQueue = async (): Promise<LeaveItem[]> => {
   return response.data;
 };
 
-export const fetchTeamCalendar = async (fromDate: string, toDate: string): Promise<TeamCalendarItem[]> => {
+export const fetchTeamCalendar = async (companyId: number, fromDate: string, toDate: string): Promise<TeamCalendarItem[]> => {
   const response = await apiClient.get("/leaves/team-calendar", {
-    params: { company_id: 1, from_date: fromDate, to_date: toDate },
+    params: { company_id: companyId, from_date: fromDate, to_date: toDate },
   });
   return response.data;
 };

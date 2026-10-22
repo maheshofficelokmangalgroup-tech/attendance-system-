@@ -78,7 +78,7 @@ def my_history(
     db: Session = Depends(get_db),
 ):
     svc = LeaveService(db)
-    return svc.list_leaves(company_id=1, page=page, page_size=page_size, employee_id=current_user.employee_id)
+    return svc.list_my(employee_id=current_user.employee_id, page=page, page_size=page_size)
 
 
 @router.get("/approval-queue", response_model=APIResponse[List[LeaveResponse]], summary="Get pending approvals for logged-in user")

@@ -3,6 +3,7 @@ import {
   CalendarCheck, CheckCircle2, XCircle, Clock, Calendar as CalendarIcon,
   Filter, Search, UserCheck, Check, X, ChevronLeft, ChevronRight, AlertCircle,
 } from "lucide-react";
+import apiClient from "@/api/client";
 import DataTable, { Column } from "@/components/ui/DataTable";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { type StatusKey } from "@/theme/tokens";
@@ -11,11 +12,11 @@ import {
   approveFirstLevel, approveFinalLevel, rejectLeave,
   LeaveItem, TeamCalendarItem, LeaveBalanceItem,
 } from "@/api/leaves";
-import apiClient from "@/api/client";
 
 type Tab = "approvals" | "calendar" | "all_leaves" | "my_balances";
 
 interface Department { id: number; name: string; }
+interface Company { id: number; name: string; }
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -105,6 +106,10 @@ const CalendarGrid: React.FC<{ monthDate: Date; items: TeamCalendarItem[] }> = (
 const LeaveManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>("approvals");
 
+  // Company filter — applies to All Leaves and Team Calendar tabs
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
+
   // Approval Queue State
   const [approvalQueue, setApprovalQueue] = useState<LeaveItem[]>([]);
   const [isApprovalsLoading, setIsApprovalsLoading] = useState(true);
@@ -141,7 +146,7 @@ const LeaveManagement: React.FC = () => {
 
   const loadAllLeaves = () => {
     setIsLeavesLoading(true);
-    const params: any = { company_id: 1, page_size: 100 };
+    const params: any = { company_id: companyId, page_size: 100 };
     if (deptFilter) params.department_id = deptFilter;
     if (statusFilter) params.status = statusFilter;
 
@@ -158,15 +163,15 @@ const LeaveManagement: React.FC = () => {
     const fromDate = new Date(y, m, 1).toISOString().split("T")[0];
     const toDate = new Date(y, m + 1, 0).toISOString().split("T")[0];
 
-    fetchTeamCalendar(fromDate, toDate)
+    fetchTeamCalendar(companyId, fromDate, toDate)
       .then((data) => setCalendarItems(Array.isArray(data) ? data : (data as any)?.data ?? []))
       .catch(console.error)
       .finally(() => setIsCalendarLoading(false));
   };
 
   useEffect(() => {
-    apiClient.get("/departments?company_id=1&page_size=100")
-      .then(({ data }) => setDepartments(Array.isArray(data) ? data : data?.data ?? []))
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
       .catch(console.error);
 
     loadApprovalQueue();
@@ -179,9 +184,19 @@ const LeaveManagement: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Company changed — departments belong to a specific company, so the
+    // dropdown and any previously-selected filter must reset together.
+    setDeptFilter("");
+    apiClient.get(`/departments?company_id=${companyId}&page_size=100`)
+      .then(({ data }) => setDepartments(Array.isArray(data) ? data : data?.data ?? []))
+      .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+
+  useEffect(() => {
     if (activeTab === "all_leaves") loadAllLeaves();
     if (activeTab === "calendar") loadCalendar();
-  }, [activeTab, deptFilter, statusFilter, currentMonthDate]);
+  }, [activeTab, deptFilter, statusFilter, currentMonthDate, companyId]);
 
   const handleAction = async () => {
     if (!selectedLeave || !actionType) return;
@@ -288,6 +303,20 @@ const LeaveManagement: React.FC = () => {
             Manager & HR 2-stage approval workflow, team calendar, and leave balances
           </p>
         </div>
+      </div>
+
+      {/* Company Filter — applies to All Leave Requests and Team Calendar (Pending Approvals spans every company already) */}
+      <div className="card" style={{ padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" }}>
+        <Filter size={16} color="var(--color-text-secondary)" />
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+        <select
+          className="input"
+          style={{ width: "220px" }}
+          value={companyId}
+          onChange={(e) => setCompanyId(Number(e.target.value))}
+        >
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       {/* Navigation Tabs */}

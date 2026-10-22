@@ -553,6 +553,11 @@ class LeaveService:
     # Query & Calendar
     # ------------------------------------------------------------------
 
+    def list_my(self, employee_id: int, page: int = 1, page_size: int = 20) -> PaginatedResponse[LeaveResponse]:
+        employee = self.employee_repo.get(employee_id)
+        company_id = employee.company_id if employee else 0
+        return self.list_leaves(company_id=company_id, page=page, page_size=page_size, employee_id=employee_id)
+
     def list_leaves(
         self,
         company_id: int,
