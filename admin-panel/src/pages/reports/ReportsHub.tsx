@@ -49,6 +49,8 @@ const EmployeeExcelReportPanel: React.FC = () => {
   const [results, setResults] = useState<EmployeeSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSearchResult | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
 
   const today = new Date();
   const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -58,19 +60,25 @@ const EmployeeExcelReportPanel: React.FC = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
     if (!query.trim()) {
       setResults([]);
       return;
     }
     setIsSearching(true);
     const handle = setTimeout(() => {
-      apiClient.get("/employees", { params: { company_id: 1, search: query, page_size: 10 } })
+      apiClient.get("/employees", { params: { company_id: companyId, search: query, page_size: 10 } })
         .then(({ data }) => setResults(Array.isArray(data) ? data : data?.data ?? []))
         .catch(() => setResults([]))
         .finally(() => setIsSearching(false));
     }, 300); // debounce
     return () => clearTimeout(handle);
-  }, [query]);
+  }, [query, companyId]);
 
   const applyPreset = (preset: "this_month" | "last_month" | "this_week") => {
     const now = new Date();
@@ -109,6 +117,21 @@ const EmployeeExcelReportPanel: React.FC = () => {
         <p style={{ fontSize: "13px", color: "var(--color-text-secondary)", marginTop: "2px" }}>
           Search an employee, pick a period, and download their full attendance + daily task summary as a real Excel file.
         </p>
+      </div>
+
+      {/* Company — scopes which employees the search below can find */}
+      <div>
+        <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Company
+        </label>
+        <select
+          className="input"
+          style={{ width: "220px", marginTop: "8px" }}
+          value={companyId}
+          onChange={(e) => { setCompanyId(Number(e.target.value)); setSelectedEmployee(null); setQuery(""); setResults([]); }}
+        >
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       {/* Step 1: Search + select employee */}

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Trash2, Flag, Loader2 } from "lucide-react";
+import { Plus, Trash2, Flag, Loader2, Filter } from "lucide-react";
 import apiClient from "@/api/client";
 
 interface Holiday { id: number; name: string; date: string; type: string; }
+interface Company { id: number; name: string; }
 
 const typeColors: Record<string, string> = {
   national: "#0284C7", regional: "#0D9488", optional: "#D97706", company: "#7C3AED",
@@ -13,19 +14,27 @@ const HolidaySettings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState({ name: "", date: "", type: "national" });
   const [saving, setSaving] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
+
+  useEffect(() => {
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
 
   const load = () => {
     setIsLoading(true);
-    apiClient.get("/holidays?company_id=1")
+    apiClient.get(`/holidays?company_id=${companyId}`)
       .then(({ data }) => setHolidays(Array.isArray(data) ? data : data?.data ?? []))
       .finally(() => setIsLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [companyId]);
 
   const create = async () => {
     if (!form.name || !form.date) return;
     setSaving(true);
-    await apiClient.post("/holidays", { ...form, company_id: 1 });
+    await apiClient.post("/holidays", { ...form, company_id: companyId });
     setForm({ name: "", date: "", type: "national" });
     load(); setSaving(false);
   };
@@ -46,6 +55,14 @@ const HolidaySettings: React.FC = () => {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700, color: "var(--color-text-primary)" }}>Holidays</h1>
           <p style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>Annual holiday calendar</p>
         </div>
+      </div>
+
+      <div className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+        <Filter size={15} color="var(--color-text-secondary)" />
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+        <select className="input" style={{ width: "220px" }} value={companyId} onChange={(e) => setCompanyId(Number(e.target.value))}>
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       <div className="card" style={{ padding: "20px", marginBottom: "16px" }}>

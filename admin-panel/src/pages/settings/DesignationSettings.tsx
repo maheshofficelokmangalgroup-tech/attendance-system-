@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Trash2, Edit2, Save, X, Tag } from "lucide-react";
+import { Plus, Trash2, Edit2, Save, X, Tag, Filter } from "lucide-react";
 import apiClient from "@/api/client";
 
 interface Designation { id: number; name: string; department_id: number; is_active: boolean; }
 interface Department { id: number; name: string; }
+interface Company { id: number; name: string; }
 
 const DesignationSettings: React.FC = () => {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<number | null>(null);
   const [items, setItems] = useState<Designation[]>([]);
@@ -16,13 +19,19 @@ const DesignationSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    apiClient.get("/departments?company_id=1&page_size=100")
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    apiClient.get(`/departments?company_id=${companyId}&page_size=100`)
       .then(({ data }) => {
         const list: Department[] = (Array.isArray(data) ? data : (data as { data?: Department[] })?.data) ?? [];
         setDepartments(list);
-        if (list.length > 0) setSelectedDept(list[0].id);
+        setSelectedDept(list.length > 0 ? list[0].id : null);
       }).catch(console.error);
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     if (!selectedDept) return;
@@ -79,6 +88,14 @@ const DesignationSettings: React.FC = () => {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "22px", fontWeight: 700, color: "var(--color-text-primary)" }}>Designations</h1>
           <p style={{ fontSize: "13px", color: "var(--color-text-secondary)" }}>Job titles per department</p>
         </div>
+      </div>
+
+      <div className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+        <Filter size={15} color="var(--color-text-secondary)" />
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+        <select className="input" style={{ width: "220px" }} value={companyId} onChange={(e) => setCompanyId(Number(e.target.value))}>
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       <div className="card" style={{ padding: "20px", marginBottom: "16px" }}>

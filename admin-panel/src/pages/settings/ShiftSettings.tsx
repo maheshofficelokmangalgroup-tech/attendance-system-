@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Clock, Trash2, Loader2 } from "lucide-react";
+import { Plus, Clock, Trash2, Loader2, Filter } from "lucide-react";
 import apiClient from "@/api/client";
 
 const shiftSchema = z.object({
@@ -16,27 +16,36 @@ const shiftSchema = z.object({
 type ShiftForm = z.infer<typeof shiftSchema>;
 
 interface Shift { id: number; name: string; start_time: string; end_time: string; grace_period_minutes: number; working_hours: number; is_active: boolean; }
+interface Company { id: number; name: string; }
 
 const ShiftSettings: React.FC = () => {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
 
   const { register, handleSubmit, reset, formState: { errors: _errors, isSubmitting } } = useForm<ShiftForm>({
     resolver: zodResolver(shiftSchema),
     defaultValues: { grace_period_minutes: 15, working_hours: 8, half_day_hours: 4 },
   });
 
+  useEffect(() => {
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
   const load = () => {
     setIsLoading(true);
-    apiClient.get("/shifts?company_id=1")
+    apiClient.get(`/shifts?company_id=${companyId}`)
       .then(({ data }) => setShifts(Array.isArray(data) ? data : data?.data ?? []))
       .finally(() => setIsLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [companyId]);
 
   const onSubmit = async (values: ShiftForm) => {
-    await apiClient.post("/shifts", { ...values, company_id: 1 });
+    await apiClient.post("/shifts", { ...values, company_id: companyId });
     reset(); setShowForm(false); load();
   };
 
@@ -61,6 +70,14 @@ const ShiftSettings: React.FC = () => {
         <button className="btn-primary" onClick={() => setShowForm((v) => !v)}>
           <Plus size={15} /> Add Shift
         </button>
+      </div>
+
+      <div className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+        <Filter size={15} color="var(--color-text-secondary)" />
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+        <select className="input" style={{ width: "220px" }} value={companyId} onChange={(e) => setCompanyId(Number(e.target.value))}>
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       {showForm && (

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, CalendarCheck, Loader2, Trash2 } from "lucide-react";
+import { Plus, CalendarCheck, Loader2, Trash2, Filter } from "lucide-react";
 import apiClient from "@/api/client";
 
 const schema = z.object({
@@ -18,11 +18,14 @@ const schema = z.object({
 type LTForm = z.infer<typeof schema>;
 
 interface LeaveType { id: number; name: string; code: string; days_per_year: number; max_consecutive_days: number | null; is_paid: boolean; is_active: boolean; }
+interface Company { id: number; name: string; }
 
 const LeaveTypeSettings: React.FC = () => {
   const [items, setItems] = useState<LeaveType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyId, setCompanyId] = useState<number>(1);
 
   const { register, handleSubmit, reset, watch, formState: { isSubmitting } } = useForm<LTForm>({
     resolver: zodResolver(schema),
@@ -31,17 +34,23 @@ const LeaveTypeSettings: React.FC = () => {
 
   const carryForward = watch("carry_forward");
 
+  useEffect(() => {
+    apiClient.get("/companies")
+      .then(({ data }) => setCompanies((Array.isArray(data) ? data : (data as { data?: Company[] })?.data) ?? []))
+      .catch(console.error);
+  }, []);
+
   const load = () => {
     setIsLoading(true);
-    apiClient.get("/leave-types?company_id=1")
+    apiClient.get(`/leave-types?company_id=${companyId}`)
       .then(({ data }) => setItems(Array.isArray(data) ? data : data?.data ?? []))
       .finally(() => setIsLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [companyId]);
 
   const onSubmit = async (values: LTForm) => {
     const max_consecutive_days = values.max_consecutive_days && values.max_consecutive_days > 0 ? values.max_consecutive_days : undefined;
-    await apiClient.post("/leave-types", { ...values, max_consecutive_days, company_id: 1 });
+    await apiClient.post("/leave-types", { ...values, max_consecutive_days, company_id: companyId });
     reset(); setShowForm(false); load();
   };
 
@@ -64,6 +73,14 @@ const LeaveTypeSettings: React.FC = () => {
           </div>
         </div>
         <button className="btn-primary" onClick={() => setShowForm((v) => !v)}><Plus size={15} /> Add Type</button>
+      </div>
+
+      <div className="card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+        <Filter size={15} color="var(--color-text-secondary)" />
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-secondary)" }}>COMPANY:</span>
+        <select className="input" style={{ width: "220px" }} value={companyId} onChange={(e) => setCompanyId(Number(e.target.value))}>
+          {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
 
       {showForm && (
