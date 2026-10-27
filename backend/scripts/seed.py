@@ -31,6 +31,7 @@ from app.auth.rbac import PERMISSION_MATRIX
 
 
 def seed():
+    
     print("Creating tables (if not exist)...")
     Base.metadata.create_all(bind=engine)
 
